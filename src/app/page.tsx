@@ -38,7 +38,7 @@ export default function HomePage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/nicholaisen-black.png"
+              src="/nichomachines-black.png"
               alt="Nicholaisen"
               className="h-16 w-auto"
             />

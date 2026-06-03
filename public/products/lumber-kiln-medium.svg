@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="Lumber Kiln — Medium">
+  <rect width="400" height="240" fill="#f5f5f5"/>
+  <rect x="80" y="105" width="240" height="95" rx="6" fill="#ffffff" stroke="#da5f06" stroke-width="3"/>
+  <rect x="90" y="115" width="220" height="22" fill="#da5f06" opacity="0.18"/>
+  <rect x="90" y="145" width="220" height="6" fill="#da5f06" opacity="0.35"/>
+  <rect x="90" y="160" width="220" height="6" fill="#da5f06" opacity="0.35"/>
+  <rect x="90" y="175" width="220" height="6" fill="#da5f06" opacity="0.35"/>
+  <circle cx="295" cy="126" r="3" fill="#da5f06"/>
+  <path d="M 120 85 Q 130 65 120 45" stroke="#da5f06" stroke-width="2" fill="none" opacity="0.55"/>
+  <path d="M 165 85 Q 175 65 165 45" stroke="#da5f06" stroke-width="2" fill="none" opacity="0.55"/>
+  <path d="M 210 85 Q 220 65 210 45" stroke="#da5f06" stroke-width="2" fill="none" opacity="0.55"/>
+  <path d="M 255 85 Q 265 65 255 45" stroke="#da5f06" stroke-width="2" fill="none" opacity="0.55"/>
+  <text x="200" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#2a2a2a">Lumber Kiln — Medium</text>
+</svg>

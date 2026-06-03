@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="Ceramic Shuttle Kiln">
+  <rect width="400" height="240" fill="#f5f5f5"/>
+  <rect x="130" y="90" width="140" height="110" rx="8" fill="#ffffff" stroke="#da5f06" stroke-width="3"/>
+  <rect x="140" y="100" width="120" height="30" rx="2" fill="#da5f06" opacity="0.18"/>
+  <line x1="200" y1="100" x2="200" y2="195" stroke="#da5f06" stroke-width="1.5" opacity="0.6"/>
+  <circle cx="180" cy="170" r="3" fill="#da5f06"/>
+  <circle cx="220" cy="170" r="3" fill="#da5f06"/>
+  <rect x="155" y="140" width="40" height="45" rx="2" fill="#da5f06" opacity="0.15"/>
+  <rect x="205" y="140" width="40" height="45" rx="2" fill="#da5f06" opacity="0.15"/>
+  <g opacity="0.55" stroke="#da5f06" stroke-width="2" fill="none">
+    <path d="M 160 70 Q 170 50 160 30"/>
+    <path d="M 200 70 Q 210 50 200 30"/>
+    <path d="M 240 70 Q 250 50 240 30"/>
+  </g>
+  <text x="200" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#2a2a2a">Ceramic Shuttle Kiln</text>
+</svg>

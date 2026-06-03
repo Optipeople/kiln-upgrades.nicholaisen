@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="Brick Tunnel Kiln">
+  <rect width="400" height="240" fill="#f5f5f5"/>
+  <rect x="30" y="115" width="340" height="65" rx="4" fill="#ffffff" stroke="#da5f06" stroke-width="3"/>
+  <g fill="#da5f06" opacity="0.25">
+    <rect x="50" y="128" width="30" height="40" rx="1"/>
+    <rect x="90" y="128" width="30" height="40" rx="1"/>
+    <rect x="130" y="128" width="30" height="40" rx="1"/>
+    <rect x="170" y="128" width="30" height="40" rx="1"/>
+    <rect x="210" y="128" width="30" height="40" rx="1"/>
+    <rect x="250" y="128" width="30" height="40" rx="1"/>
+    <rect x="290" y="128" width="30" height="40" rx="1"/>
+    <rect x="330" y="128" width="30" height="40" rx="1"/>
+  </g>
+  <polygon points="10,148 30,138 30,158" fill="#da5f06"/>
+  <polygon points="390,148 370,138 370,158" fill="#da5f06"/>
+  <g opacity="0.55" stroke="#da5f06" stroke-width="2" fill="none">
+    <path d="M 110 100 Q 120 80 110 60"/>
+    <path d="M 200 100 Q 210 80 200 60"/>
+    <path d="M 290 100 Q 300 80 290 60"/>
+  </g>
+  <text x="200" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#2a2a2a">Brick Tunnel Kiln</text>
+</svg>

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight } from "next/font/google";
+import { Footer } from "@/components/Footer";
 import { site } from "@/lib/site";
 import "@/styles/globals.css";
 
@@ -43,14 +44,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={interTight.variable}>
-      <body className="min-h-screen bg-[var(--color-cream-50)] text-[var(--color-ink-700)] antialiased">
+      <body className="flex min-h-screen flex-col bg-[var(--color-cream-50)] text-[var(--color-ink-700)] antialiased">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-[var(--color-tan-500)] focus:px-4 focus:py-2 focus:text-white"
         >
           Skip to content
         </a>
-        <main id="main">{children}</main>
+        <main id="main" className="flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );
