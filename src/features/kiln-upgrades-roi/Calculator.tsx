@@ -179,7 +179,8 @@ export function KilnUpgradesRoiCalculator() {
   const [product,    setProduct]    = useState<ProductKey | null>(null);
   const [kilns,      setKilns]      = useState(3);
   const [m3,         setM3]         = useState(60);
-  const [hours,      setHours]      = useState(6500);
+  const [cycles,     setCycles]     = useState(20);
+  const [cycleHours, setCycleHours] = useState(240);
   const [fanpow,     setFanpow]     = useState(45);
   const [heat,       setHeat]       = useState<HeatSource>("boiler");
   const [age,        setAge]        = useState<1 | 2 | 3>(1);
@@ -195,8 +196,9 @@ export function KilnUpgradesRoiCalculator() {
   const topRef     = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  const co = COUNTRIES[country];
-  const ef = EMISSION_FACTORS[country];
+  const co    = COUNTRIES[country];
+  const ef    = EMISSION_FACTORS[country];
+  const hours = Math.min(cycles * cycleHours, 8760);
 
   const goTo = useCallback((next: Step) => {
     setStep(next);
@@ -263,7 +265,7 @@ export function KilnUpgradesRoiCalculator() {
 
   const resetForm = () => {
     setCountry("dk"); setProduct(null);
-    setKilns(3); setM3(60); setHours(6500);
+    setKilns(3); setM3(60); setCycles(20); setCycleHours(240);
     setFanpow(45); setHeat("boiler"); setAge(1); setInv(false); setSelectedPkg(null);
     setContact({ name: "", email: "", job: "", company: "" });
     setErrors({}); setFormError(null);
@@ -366,9 +368,29 @@ export function KilnUpgradesRoiCalculator() {
         >
           <SectionLabel>Setup</SectionLabel>
 
-          <SliderRow label="Number of kilns"              value={kilns}  display={String(kilns)}            min={1}    max={12}   step={1}    onChange={setKilns}  />
-          <SliderRow label="Capacity per kiln (m³)"       value={m3}     display={`${m3} m³`}               min={20}   max={300}  step={10}   onChange={setM3}     />
-          <SliderRow label="Annual operating hours / kiln" value={hours}  display={`${hours.toLocaleString("en")} h`} min={500} max={8760} step={100} onChange={setHours} />
+          <SliderRow label="Antal tørrestuer"                    value={kilns}      display={String(kilns)}                        min={1}  max={12}  step={1}  onChange={setKilns}      />
+          <SliderRow label="Kapacitet pr. tørrestue (m³)"       value={m3}         display={`${m3} m³`}                              min={20} max={300} step={10} onChange={setM3}         />
+          <SliderRow label="Tørrecyklusser pr. tørrestue pr. år" value={cycles}     display={`${cycles} cyklusser`}                                                min={1}  max={365} step={1}  onChange={setCycles}     />
+          <SliderRow label="Timer pr. tørrecyklus"               value={cycleHours} display={`${cycleHours} h (${(cycleHours / 24).toFixed(1)} dage)`} min={12} max={600} step={6}  onChange={setCycleHours} />
+
+          {cycles * cycleHours > 8760 ? (
+            <div className="mb-5 rounded-md px-4 py-3 text-sm"
+              style={{ background: "#fff4e5", border: "1px solid #f59e0b", color: "#92400e" }}>
+              <p className="font-semibold">Kombinationen overstiger årets maksimum</p>
+              <p className="mt-0.5 text-xs">
+                {cycles} cyklusser × {cycleHours} h = {(cycles * cycleHours).toLocaleString("en")} h — men et år har maks. 8.760 h.
+                Beregningen bruger 8.760 h. Reducer antal cyklusser eller timer pr. cyklus.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-5 flex items-center justify-between rounded-md px-4 py-2.5 text-sm"
+              style={{ background: "var(--color-cream-50)", border: "1px solid var(--color-paper-dark)" }}>
+              <span style={{ color: "var(--color-ink-500)" }}>Driftstimer pr. tørrestue pr. år (beregnet)</span>
+              <span className="font-semibold" style={{ color: "var(--color-ink-900)" }}>
+                {hours.toLocaleString("en")} h
+              </span>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="my-8 flex items-center gap-3">
