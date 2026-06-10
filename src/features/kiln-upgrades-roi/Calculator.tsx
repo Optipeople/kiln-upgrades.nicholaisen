@@ -6,106 +6,197 @@ import {
   useMemo,
   useRef,
   useState,
+  type ButtonHTMLAttributes,
   type FormEvent,
+  type ReactNode,
+  type Ref,
 } from "react";
-import { ArrowLeft, ArrowRight, Check, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { PRODUCTS, type KilnProduct } from "./products";
-import { SOLUTIONS, type SolutionVariant } from "./solutions";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
-const INPUT_STEPS = 5; // 0..4 inclusive
+// ── Step ──────────────────────────────────────────────────────────────────────
+// 0–4: wizard   5: contact   6: thank you
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-const SHIFT_WEEKLY_HOURS: Record<1 | 2 | 3, number> = { 1: 37, 2: 71, 3: 101 };
+// ── Countries ─────────────────────────────────────────────────────────────────
+type CountryKey = "dk" | "se" | "no" | "fi" | "ee" | "lv" | "lt" | "pl" | "de";
 
-const COUNTRIES = [
-  { code: "DK", name: "Denmark",    eurPerHour: 38,   currency: "DKK", eurToLocal: 7.46 },
-  { code: "SE", name: "Sweden",     eurPerHour: 35,   currency: "SEK", eurToLocal: 11.50 },
-  { code: "NO", name: "Norway",     eurPerHour: 48,   currency: "NOK", eurToLocal: 11.80 },
-  { code: "FI", name: "Finland",    eurPerHour: 35,   currency: "EUR", eurToLocal: 1.0 },
-  { code: "EE", name: "Estonia",    eurPerHour: 20,   currency: "EUR", eurToLocal: 1.0 },
-  { code: "LV", name: "Latvia",     eurPerHour: 20,   currency: "EUR", eurToLocal: 1.0 },
-  { code: "LT", name: "Lithuania",  eurPerHour: 20,   currency: "EUR", eurToLocal: 1.0 },
-] as const;
-type CountryCode = (typeof COUNTRIES)[number]["code"];
-
-function fmtCurrency(eurAmount: number, eurToLocal: number, currency: string): string {
-  const amount = Math.round(eurAmount * eurToLocal);
-  const formatted = amount.toLocaleString("en");
-  return currency === "EUR" ? `€${formatted}` : `${formatted} ${currency}`;
+interface Country {
+  name: string;
+  currency: string;
+  sym: string;
+  fxRate: number;
+  fxLabel: string;
+  elecPrice: number;
+  gasPrice: number;
 }
 
-const SOLUTION_LABELS = [
-  { label: "Conservative choice",       badge: "bg-[var(--color-paper-dark)] text-[var(--color-ink-900)]" },
-  { label: "Best fit for current needs", badge: "bg-[var(--color-tan-500)]/15 text-[var(--color-tan-700,#8a6a2a)]" },
-  { label: "Growth ambitions",          badge: "bg-emerald-50 text-emerald-800" },
+const COUNTRIES: Record<CountryKey, Country> = {
+  dk: { name: "Denmark",   currency: "DKK", sym: "DKK ", fxRate: 1,     fxLabel: "base currency",     elecPrice: 1.40, gasPrice: 0.65 },
+  se: { name: "Sweden",    currency: "SEK", sym: "SEK ", fxRate: 1.44,  fxLabel: "1 DKK = 1.44 SEK",  elecPrice: 1.20, gasPrice: 0.55 },
+  no: { name: "Norway",    currency: "NOK", sym: "NOK ", fxRate: 1.50,  fxLabel: "1 DKK = 1.50 NOK",  elecPrice: 0.80, gasPrice: 0.50 },
+  fi: { name: "Finland",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, gasPrice: 0.08 },
+  ee: { name: "Estonia",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.14, gasPrice: 0.09 },
+  lv: { name: "Latvia",    currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.15, gasPrice: 0.08 },
+  lt: { name: "Lithuania", currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, gasPrice: 0.08 },
+  pl: { name: "Poland",    currency: "PLN", sym: "PLN ", fxRate: 0.524, fxLabel: "1 DKK = 0.524 PLN", elecPrice: 0.72, gasPrice: 0.35 },
+  de: { name: "Germany",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.20, gasPrice: 0.12 },
+};
+
+// ── Emission factors ──────────────────────────────────────────────────────────
+interface EmissionFactors {
+  electricity: number;
+  boiler: number;
+  boilerLabel: string;
+  heatpump: number;
+}
+
+const EMISSION_FACTORS: Record<CountryKey, EmissionFactors> = {
+  dk: { electricity: 172, boiler:  30, boilerLabel: "wood waste (biogenic)", heatpump: 54  },
+  se: { electricity:  13, boiler:  20, boilerLabel: "wood waste (biogenic)", heatpump:  4  },
+  no: { electricity:  26, boiler:  20, boilerLabel: "wood waste (biogenic)", heatpump:  8  },
+  fi: { electricity:  98, boiler:  30, boilerLabel: "wood waste (biogenic)", heatpump: 31  },
+  ee: { electricity: 390, boiler:  80, boilerLabel: "mixed wood / gas",      heatpump: 122 },
+  lv: { electricity: 125, boiler:  50, boilerLabel: "wood waste (biogenic)", heatpump: 39  },
+  lt: { electricity: 185, boiler:  80, boilerLabel: "mixed wood / gas",      heatpump: 58  },
+  pl: { electricity: 705, boiler: 270, boilerLabel: "mixed coal / gas",      heatpump: 220 },
+  de: { electricity: 385, boiler: 205, boilerLabel: "natural gas",           heatpump: 120 },
+};
+
+// ── Products ──────────────────────────────────────────────────────────────────
+type ProductKey = "lumber" | "flooring" | "furniture" | "pallets";
+
+const PRODUCTS: { key: ProductKey; label: string; sub: string }[] = [
+  { key: "lumber",    label: "Sawn lumber",          sub: "Boards, planks, beams"   },
+  { key: "flooring",  label: "Flooring / panels",    sub: "Parquet, engineered"     },
+  { key: "furniture", label: "Furniture components", sub: "Solid wood blanks"       },
+  { key: "pallets",   label: "Pallets / packaging",  sub: "ISPM 15 treatment"       },
 ];
 
-function calcSolution(
-  s: SolutionVariant,
-  products: KilnProduct[],
-  quantities: Record<string, number>, // units per week
-  operatorHoursPerWeek: number,
-  selectedAutoNames: Set<string>,
-  eurPerHour: number,
-  availableShifts: 1 | 2 | 3,
-) {
-  const selectedOptions = (s.automationOptions ?? []).filter((o) => selectedAutoNames.has(o.name));
-  const oeeBoost = selectedOptions.reduce((sum, o) => sum + o.oeeBoostPct, 0);
-  const operatorReduction = selectedOptions.reduce((sum, o) => sum + o.operatorReduction, 0);
-  const automationPrice = selectedOptions.reduce((sum, o) => sum + o.priceEur, 0);
+// ── Age ───────────────────────────────────────────────────────────────────────
+const AGE_LABELS: Record<1 | 2 | 3, string> = {
+  1: "Legacy (pre-2015)",
+  2: "Mid-gen (2015–2020)",
+  3: "Modern (post-2020)",
+};
+const AGE_DESCS: Record<1 | 2 | 3, string> = {
+  1: "Pre-2015 system — full upgrade scope. Stop & Go, wireless probes and inverters not yet available.",
+  2: "Partial upgrade scope — inverters and wireless probes deliver the strongest gains.",
+  3: "Recent system — cloud and AI optimisation unlock the next savings layer.",
+};
 
-  const oee = Math.min(100, s.oeePercent + oeeBoost);
-  const effectiveOperators = Math.max(0, s.operators - operatorReduction);
-  const totalInvestment = s.investmentEur + automationPrice;
+// ── Heat source ───────────────────────────────────────────────────────────────
+type HeatSource = "boiler" | "electric" | "heatpump";
 
-  const rawWeeklyHours = products.reduce((sum, p) => {
-    return sum + ((quantities[p.id] ?? 0) * (s.processingTimeSec[p.id] ?? 0)) / 3600;
-  }, 0);
-  const weeklyMachineHours = rawWeeklyHours / (oee / 100);
-  const availableWeeklyHours = SHIFT_WEEKLY_HOURS[availableShifts];
-  const capacityUtilPct = (weeklyMachineHours / availableWeeklyHours) * 100;
+const HEAT_OPTS: { value: HeatSource; label: string; sub: string }[] = [
+  { value: "boiler",   label: "Thermal boiler (wood / oil / gas)", sub: "High thermal saving potential" },
+  { value: "electric", label: "Electric heating",                   sub: "Electricity savings dominant"  },
+  { value: "heatpump", label: "Heat pump",                          sub: "Combined savings"              },
+];
 
-  const annualMachineHours = weeklyMachineHours * 46;
-  const annualCurrentCost = operatorHoursPerWeek * 46 * eurPerHour;
-  const annualFutureCost = weeklyMachineHours * effectiveOperators * 46 * eurPerHour;
-  const annualSavingsEur = Math.max(0, annualCurrentCost - annualFutureCost);
-  const paybackYears = annualSavingsEur > 0 ? totalInvestment / annualSavingsEur : Infinity;
+// ── Savings + CO₂ calculation ─────────────────────────────────────────────────
+function calcSavings(s: {
+  country: CountryKey; kilns: number; m3: number; fanpow: number; hours: number;
+  inv: boolean; heat: HeatSource; age: 1 | 2 | 3;
+}) {
+  const co = COUNTRIES[s.country];
+  const ef = EMISSION_FACTORS[s.country];
 
-  return { oee, effectiveOperators, totalInvestment, weeklyMachineHours, annualMachineHours, capacityUtilPct, annualSavingsEur, paybackYears };
+  const annualFanEnergy = s.kilns * s.fanpow * s.hours;
+  const elecSavePct     = s.inv ? 0.22 : 0.38;
+  const elecSavingDKK   = annualFanEnergy * elecSavePct * (co.elecPrice / co.fxRate);
+  const thermSavingDKK  =
+    s.heat === "boiler"   ? elecSavingDKK * 0.45 :
+    s.heat === "heatpump" ? elecSavingDKK * 0.22 : 0;
+  const totalDKK = elecSavingDKK + thermSavingDKK;
+
+  const health = Math.round(([20, 55, 85][s.age - 1]! + (s.inv ? 70 : 20)) / 2);
+
+  const elecSavedKwh   = annualFanEnergy * elecSavePct;
+  const currentFanCO2t = (annualFanEnergy * ef.electricity) / 1_000_000;
+  const savedFanCO2t   = (elecSavedKwh   * ef.electricity) / 1_000_000;
+
+  const annualThermalKwh = s.kilns * s.m3 * 280;
+  const heatEmFactor =
+    s.heat === "boiler"   ? ef.boiler :
+    s.heat === "heatpump" ? ef.heatpump : ef.electricity;
+  const heatSavePct     = s.heat === "boiler" ? 0.22 : s.heat === "heatpump" ? 0.12 : 0;
+  const currentHeatCO2t = (annualThermalKwh * heatEmFactor) / 1_000_000;
+  const savedHeatCO2t   = currentHeatCO2t * heatSavePct;
+
+  return {
+    totalDKK, elecSavePct, health,
+    savedFanCO2t, savedHeatCO2t,
+    currentFanCO2t,
+    totalSavedCO2t: savedFanCO2t + savedHeatCO2t,
+  };
+}
+
+function fmtLocal(dkk: number, co: Country): string {
+  const v = Math.round(dkk * co.fxRate);
+  if (v >= 1_000_000) return co.sym + (v / 1_000_000).toFixed(1) + "M";
+  if (v >= 1_000)     return co.sym + Math.round(v / 1000) + "K";
+  return co.sym + v;
+}
+
+function calcPackages(totalDKK: number, kilns: number) {
+  return [
+    {
+      name: "Start Smart", tag: "Control + sensors",
+      saveLo: totalDKK * 0.45, saveHi: totalDKK * 0.65,
+      invLo: kilns * 28000, invHi: kilns * 45000, featured: false,
+      items: ["iDry control system upgrade", "Stop & Go software activation",
+              "Wireless moisture probes", "Remote monitoring & app access",
+              "OptiCloud platform onboarding", "Operator training session"],
+    },
+    {
+      name: "Upgrade Complete", tag: "Mechanical + software",
+      saveLo: totalDKK * 0.70, saveHi: totalDKK * 0.95,
+      invLo: kilns * 65000, invHi: kilns * 96000, featured: true,
+      items: ["Everything in Start Smart", "Inverter drives on all fans",
+              "Tubed fan conversion", "Heat recovery system",
+              "Service contract year 1", "Energy consumption dashboard"],
+    },
+    {
+      name: "Future Ready", tag: "Cloud-connected + AI",
+      saveLo: totalDKK * 0.95, saveHi: totalDKK * 1.35,
+      invLo: kilns * 96000, invHi: kilns * 120000, featured: false,
+      items: ["Everything in Upgrade Complete", "Multi-kiln cloud fleet management",
+              "Spot energy price optimisation", "AI-assisted drying recipes",
+              "Operator mobile app", "3-year service agreement"],
+    },
+  ] as const;
 }
 
 type Contact = { name: string; email: string; job: string; company: string };
+const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-
+// ─────────────────────────────────────────────────────────────────────────────
 export function KilnUpgradesRoiCalculator() {
   const [step, setStep] = useState<Step>(0);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [operatorHoursPerWeek, setOperatorHoursPerWeek] = useState<number>(40);
-  const [contact, setContact] = useState<Contact>({
-    name: "",
-    email: "",
-    job: "",
-    company: "",
-  });
-  const [website, setWebsite] = useState(""); // honeypot
-  const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>(
-    {},
-  );
-  const [formError, setFormError] = useState<string | null>(null);
+
+  const [country,    setCountry]    = useState<CountryKey>("dk");
+  const [product,    setProduct]    = useState<ProductKey | null>(null);
+  const [kilns,      setKilns]      = useState(3);
+  const [m3,         setM3]         = useState(60);
+  const [hours,      setHours]      = useState(6500);
+  const [fanpow,     setFanpow]     = useState(45);
+  const [heat,       setHeat]       = useState<HeatSource>("boiler");
+  const [age,        setAge]        = useState<1 | 2 | 3>(1);
+  const [inv,        setInv]        = useState(false);
+  const [selectedPkg,setSelectedPkg]= useState<string | null>(null);
+
+  const [contact,    setContact]    = useState<Contact>({ name: "", email: "", job: "", company: "" });
+  const [website,    setWebsite]    = useState("");
+  const [errors,     setErrors]     = useState<Partial<Record<keyof Contact, boolean>>>({});
+  const [formError,  setFormError]  = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedSolutionName, setSelectedSolutionName] = useState<string | null>(null);
-  const [automationSelected, setAutomationSelected] = useState<Record<string, Set<string>>>({});
-  const [country, setCountry] = useState<CountryCode>("DK");
-  const [availableShifts, setAvailableShifts] = useState<1 | 2 | 3>(1);
 
-  const selectedCountry = COUNTRIES.find((c) => c.code === country)!;
-  const eurPerHour = selectedCountry.eurPerHour;
-
-  const topRef = useRef<HTMLDivElement>(null);
+  const topRef     = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+
+  const co = COUNTRIES[country];
+  const ef = EMISSION_FACTORS[country];
 
   const goTo = useCallback((next: Step) => {
     setStep(next);
@@ -115,123 +206,45 @@ export function KilnUpgradesRoiCalculator() {
     });
   }, []);
 
-  useEffect(() => {
-    if (step !== 4) {
-      setFormError(null);
-    }
-  }, [step]);
+  useEffect(() => { if (step !== 5) setFormError(null); }, [step]);
 
-  const toggleProduct = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const setAll = (val: boolean) => {
-    if (val) setSelected(new Set(PRODUCTS.map((p) => p.id)));
-    else setSelected(new Set());
-  };
-
-  const activeProducts: KilnProduct[] = useMemo(
-    () => PRODUCTS.filter((p) => selected.has(p.id)),
-    [selected],
+  const savings  = useMemo(
+    () => calcSavings({ country, kilns, m3, fanpow, hours, inv, heat, age }),
+    [country, kilns, m3, fanpow, hours, inv, heat, age],
   );
-
-  const updateQty = (id: string, value: number) => {
-    setQuantities((prev) => ({ ...prev, [id]: value }));
-  };
+  const packages = useMemo(() => calcPackages(savings.totalDKK, kilns), [savings.totalDKK, kilns]);
 
   const firstName = (contact.name.trim().split(/\s+/)[0] || "there").trim();
 
-  const displayedSolutions = useMemo(() => {
-    const noAuto = new Set<string>();
-    const withMetrics = SOLUTIONS.map((s) => ({
-      solution: s,
-      m: calcSolution(s, activeProducts, quantities, operatorHoursPerWeek, noAuto, eurPerHour, availableShifts),
-    }));
-
-    const feasible = withMetrics.filter((w) => w.m.capacityUtilPct <= 100);
-    const pool = feasible.length > 0 ? feasible : withMetrics;
-
-    const byInvestment = [...pool].sort((a, b) => a.solution.investmentEur - b.solution.investmentEur);
-    const byPayback = [...pool].sort((a, b) => {
-      if (!Number.isFinite(a.m.paybackYears)) return 1;
-      if (!Number.isFinite(b.m.paybackYears)) return -1;
-      return a.m.paybackYears - b.m.paybackYears;
-    });
-    const byUtilDesc = [...pool].sort((a, b) => a.m.capacityUtilPct - b.m.capacityUtilPct);
-
-    const conservative = byInvestment[0];
-    const bestFit = byPayback[0];
-    const growth = byUtilDesc[0];
-
-    const labelMap = new Map<string, Array<{ label: string; badge: string }>>();
-    const earn = (item: (typeof withMetrics)[number] | undefined, i: number) => {
-      if (!item) return;
-      if (!labelMap.has(item.solution.name)) labelMap.set(item.solution.name, []);
-      labelMap.get(item.solution.name)!.push(SOLUTION_LABELS[i]!);
-    };
-    earn(conservative, 0);
-    earn(bestFit, 1);
-    earn(growth, 2);
-
-    const seen = new Set<string>();
-    const result: Array<{ solution: SolutionVariant; labels: Array<{ label: string; badge: string }> }> = [];
-    [conservative, bestFit, growth].forEach((item) => {
-      if (!item || seen.has(item.solution.name)) return;
-      seen.add(item.solution.name);
-      result.push({ solution: item.solution, labels: labelMap.get(item.solution.name) ?? [] });
-    });
-    return result;
-  }, [activeProducts, quantities, operatorHoursPerWeek, eurPerHour, availableShifts]);
-
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const name = contact.name.trim();
+    const name  = contact.name.trim();
     const email = contact.email.trim();
-    const job = contact.job.trim();
-
-    const nextErrors: Partial<Record<keyof Contact, boolean>> = {
-      name: !name,
-      email: !emailOk(email),
-      job: !job,
-    };
-    setErrors(nextErrors);
-    const bad = Object.values(nextErrors).some(Boolean);
-    if (bad) {
-      setFormError("Please complete all fields with a valid email.");
-      return;
-    }
+    const job   = contact.job.trim();
+    const next  = { name: !name, email: !emailOk(email), job: !job };
+    setErrors(next);
+    if (Object.values(next).some(Boolean)) { setFormError("Please complete all fields with a valid email."); return; }
     setFormError(null);
     setSubmitting(true);
 
     const payload = {
       contact: { name, email, job, company: contact.company.trim() || undefined },
-      products: activeProducts.map((p) => ({
-        id: p.id,
-        name: p.name,
-        size: p.size,
-        unitsPerWeek: quantities[p.id] ?? 0,
-      })),
-      operatorHoursPerWeek,
-      availableShifts,
-      country,
-      selectedSolution: selectedSolutionName
-        ? {
-            name: selectedSolutionName,
-            automationOptions: [...(automationSelected[selectedSolutionName] ?? [])],
-          }
-        : null,
+      kiln: {
+        country: country.toUpperCase(),
+        product: product ?? "unspecified",
+        kilns, m3, hours,
+        price: co.elecPrice, currency: co.currency,
+        fanpow, heat, age, inv,
+        healthScore: savings.health,
+        totalSavingsDkk: Math.round(savings.totalDKK),
+      },
+      selectedPackage: selectedPkg,
       website,
     };
 
     try {
-      const res = await fetch("/api/roi/kiln-upgrades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch("/api/roi/kiln-estimator", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -241,7 +254,7 @@ export function KilnUpgradesRoiCalculator() {
         return;
       }
       setSubmitting(false);
-      goTo(5);
+      goTo(6);
     } catch {
       setFormError("Network error. Please try again.");
       setSubmitting(false);
@@ -249,702 +262,448 @@ export function KilnUpgradesRoiCalculator() {
   };
 
   const resetForm = () => {
-    setAll(true);
-    setQuantities({});
-    setOperatorHoursPerWeek(40);
-    setCountry("DK");
-    setAvailableShifts(1);
+    setCountry("dk"); setProduct(null);
+    setKilns(3); setM3(60); setHours(6500);
+    setFanpow(45); setHeat("boiler"); setAge(1); setInv(false); setSelectedPkg(null);
     setContact({ name: "", email: "", job: "", company: "" });
-    setErrors({});
-    setFormError(null);
-    setSelectedSolutionName(null);
-    setAutomationSelected({});
+    setErrors({}); setFormError(null);
   };
 
-  const progressPct =
-    step === 0 ? 0 : Math.round((Math.min(step, INPUT_STEPS) / INPUT_STEPS) * 100);
-
-  const totalUnitsPerWeek = activeProducts.reduce(
-    (s, p) => s + (quantities[p.id] ?? 0),
-    0,
-  );
-  const step2NextDisabled = activeProducts.length === 0 || totalUnitsPerWeek <= 0 || operatorHoursPerWeek <= 0;
-  const step3NextDisabled = !selectedSolutionName;
-
-  const STEP_LABELS = ["Kilns", "Production", "Upgrade", "Contact"] as const;
-
   return (
-    <div ref={topRef} className="scroll-mt-24 min-h-[600px]">
-      {/* Progress + step dots */}
-      <div className="mb-8">
-        <div className="h-1 w-full rounded-full bg-[var(--color-paper-dark)] overflow-hidden">
-          <div
-            className="h-full bg-[var(--color-tan-500)] transition-[width] duration-500 ease-out"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="mt-4 flex items-center gap-2">
-          {[1, 2, 3, 4].map((i) => {
-            const isDone = i < step;
-            const isCurrent = i === step;
-            const canJump = i < step;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => canJump && goTo(i as Step)}
-                disabled={!canJump}
-                aria-label={`Go to step ${i}: ${STEP_LABELS[i - 1]}`}
-                aria-current={isCurrent ? "step" : undefined}
-                className={cn(
-                  "h-2 rounded-full transition-all",
-                  isCurrent ? "w-6" : "w-2",
-                  isDone
-                    ? "bg-[var(--color-tan-500)] hover:bg-[var(--color-tan-300)]"
-                    : isCurrent
-                      ? "bg-[var(--color-tan-500)]"
-                      : "bg-[var(--color-paper-dark)]",
-                  !canJump && "cursor-default",
-                )}
+    <div ref={topRef}>
+
+      {/* Progress bar */}
+      {step <= 4 && (
+        <div className="mb-8">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--color-ink-300)" }}>
+            Step {step + 1} of 5
+          </p>
+          <div className="flex gap-1.5">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="flex-1 h-1 rounded-full transition-all duration-300"
+                style={{
+                  background: i < step ? "var(--color-tan-500)" : i === step ? "var(--color-ink-900)" : "var(--color-paper-dark)",
+                }}
               />
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* STEP 0 — Intro */}
-      {step === 0 && (
-        <StepShell
-          headingRef={headingRef}
-          eyebrow="ROI Calculator"
-          title={
-            <>
-              What can a <em className="not-italic text-[var(--color-tan-500)]">kiln upgrade</em> save you?
-            </>
-          }
-          description="Higher throughput, lower energy bills, fewer operator hours — calculate your savings and payback period in under 2 minutes."
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <IntroCard
-              phase="Phase 1"
-              title="Your Kilns Today"
-              desc="Tell us which kilns you operate, your weekly throughput per kiln, and the total operator hours spent running them today."
-            />
-            <IntroCard
-              phase="Phase 2"
-              title="Your Upgrade Path"
-              desc="You'll see matched upgrade packages with estimated payback period. Our team will then send you a personalised proposal."
-            />
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <PrimaryButton onClick={() => goTo(1)}>
-              Get started
-              <ArrowRight className="size-4" aria-hidden />
-            </PrimaryButton>
-          </div>
-        </StepShell>
       )}
 
-      {/* STEP 1 — Kiln selection */}
-      {step === 1 && (
-        <StepShell
-          headingRef={headingRef}
-          eyebrow="Step 1 of 4 — Your Kilns"
-          title={
-            <>
-              Select the kilns you <em className="not-italic text-[var(--color-tan-500)]">operate</em>
-            </>
-          }
-          description="Tick all the kiln types currently running on your site. If unsure, start with all selected and remove any that don't apply."
+      {/* ── 0: Country ──────────────────────────────────────────────────────── */}
+      {step === 0 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 1 of 5 — Location"
+          title={<>Where are your kilns <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>located?</em></>}
+          description="Select your market. Energy prices, gas prices, and CO₂ emission factors are pre-configured per country — you will see the full picture on the results page."
         >
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <SmallButton onClick={() => setAll(true)}>Select all</SmallButton>
-            <SmallButton onClick={() => setAll(false)}>Clear all</SmallButton>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PRODUCTS.map((p) => {
-              const isSel = selected.has(p.id);
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {(Object.keys(COUNTRIES) as CountryKey[]).map((k) => {
+              const c   = COUNTRIES[k];
+              const isSel = country === k;
               return (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => toggleProduct(p.id)}
-                  aria-pressed={isSel}
+                <button key={k} type="button" onClick={() => setCountry(k)}
                   className={cn(
-                    "group relative flex flex-col gap-3 rounded-lg border bg-[var(--color-paper)] p-4 text-left transition-all",
-                    "hover:shadow-md hover:-translate-y-0.5",
-                    isSel
-                      ? "border-[var(--color-navy-900)] bg-[var(--color-paper)] shadow-sm"
-                      : "border-[var(--color-paper-dark)] hover:border-[var(--color-navy-500)]",
+                    "rounded-lg border p-4 text-left transition-all hover:shadow-sm",
+                    isSel ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)] shadow-sm"
+                          : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
                   )}
                 >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute right-3 top-3 inline-flex size-5 items-center justify-center rounded border-2 transition-colors",
-                      isSel
-                        ? "border-[var(--color-navy-900)] bg-[var(--color-navy-900)] text-white"
-                        : "border-[var(--color-ink-300)] bg-[var(--color-paper)] text-transparent",
-                    )}
-                  >
-                    <Check className="size-3" />
-                  </span>
-                  <div className="flex h-28 items-center justify-center rounded-md bg-[var(--color-cream-50)] p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.image}
-                      alt=""
-                      className="h-full w-full max-w-[200px] object-contain"
-                    />
-                  </div>
-                  <div className="pr-8">
-                    <div className="text-sm font-semibold tracking-wide text-[var(--color-ink-900)]">
-                      {p.id}
-                    </div>
-                    {p.size ? (
-                      <div className="text-sm text-[var(--color-ink-500)]">{p.size}</div>
-                    ) : null}
+                  <div className="flex items-start justify-between">
+                    <p className="font-semibold text-sm" style={{ color: "var(--color-ink-900)" }}>{c.name}</p>
+                    {isSel && <Check className="size-4 shrink-0" style={{ color: "var(--color-tan-500)" }} />}
                   </div>
                 </button>
               );
             })}
           </div>
-
-          <NavRow
-            onBack={() => goTo(0)}
-            onNext={() => goTo(2)}
-            nextDisabled={selected.size === 0}
-            nextDisabledHint={selected.size === 0 ? "Pick at least one kiln" : undefined}
-          />
+          <div className="mt-8 flex justify-end">
+            <PrimaryButton onClick={() => goTo(1)}>Next <ArrowRight className="size-4" aria-hidden /></PrimaryButton>
+          </div>
         </StepShell>
       )}
 
-      {/* STEP 2 — Quantities + operators */}
-      {step === 2 && (
-        <StepShell
-          headingRef={headingRef}
-          eyebrow="Step 2 of 4 — Production"
-          title={
-            <>
-              Your weekly throughput and <em className="not-italic text-[var(--color-tan-500)]">operator hours</em>
-            </>
-          }
-          description="Enter how many cycles per week you run on each kiln. Then enter the total hours your operators spend running and tending kilns — add them all up across all operators."
+      {/* ── 1: Product ──────────────────────────────────────────────────────── */}
+      {step === 1 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 2 of 5 — Product"
+          title="What do you dry?"
+          description="Select the primary product type dried in your kilns."
         >
-          {activeProducts.length === 0 ? (
-            <p className="rounded-md border border-[var(--color-paper-dark)] bg-[var(--color-paper)] p-4 text-sm text-[var(--color-ink-500)]">
-              No kilns selected. Go back and select at least one.
-            </p>
-          ) : (
-            <>
-              {/* Mobile: card list */}
-              <ul className="grid gap-3 sm:hidden">
-                {activeProducts.map((p) => (
-                  <li
-                    key={p.id}
-                    className="rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] p-3"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded bg-[var(--color-cream-50)] p-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={p.image}
-                          alt=""
-                          className="h-full w-full object-contain"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-[var(--color-ink-900)]">
-                          {p.id}
-                        </div>
-                        <div className="text-xs text-[var(--color-slate-500)]">
-                          {p.size}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--color-paper-dark)] pt-3">
-                      <label
-                        htmlFor={`qty-${p.id}`}
-                        className="inline-flex items-center gap-1 text-eyebrow text-[var(--color-slate-500)]"
-                      >
-                        Cycles / week
-                        <InfoTooltip text="How many drying or firing cycles do you run on this kiln in a typical week?" />
-                      </label>
-                      <NumberInput
-                        id={`qty-${p.id}`}
-                        value={quantities[p.id] ?? 0}
-                        min={0}
-                        onChange={(v) => updateQty(p.id, v)}
-                        className="w-28"
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Tablet+: table */}
-              <div className="hidden overflow-x-auto sm:block">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-[var(--color-navy-900)] text-left">
-                      <th className="w-[110px] pb-3" />
-                      <th className="pb-3 text-eyebrow">Kiln</th>
-                      <th className="pb-3 text-eyebrow">Size</th>
-                      <th className="pb-3 text-right text-eyebrow">
-                        <span className="inline-flex items-center justify-end gap-1">
-                          Cycles / week
-                          <InfoTooltip text="How many drying or firing cycles do you run on this kiln in a typical week?" />
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeProducts.map((p) => (
-                      <tr key={p.id} className="border-b border-[var(--color-paper-dark)]">
-                        <td className="py-3 pr-4">
-                          <div className="flex h-14 w-24 items-center justify-center rounded bg-[var(--color-cream-50)] p-1">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={p.image}
-                              alt=""
-                              className="h-full w-full object-contain"
-                            />
-                          </div>
-                        </td>
-                        <td className="py-3 pr-3 text-sm font-semibold text-[var(--color-ink-900)]">
-                          {p.id}
-                        </td>
-                        <td className="py-3 pr-3 text-xs text-[var(--color-slate-500)]">
-                          {p.size}
-                        </td>
-                        <td className="py-3 text-right">
-                          <NumberInput
-                            value={quantities[p.id] ?? 0}
-                            min={0}
-                            onChange={(v) => updateQty(p.id, v)}
-                            className="w-28"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          <FieldRow
-            label="Current operator hours per week (all operators)"
-            hint="Add up all kiln operator hours across all operators. Example: 2 operators × 4 hrs/day × 5 days = 40 hrs/week."
-            unit="hrs / week"
-            tooltip="The total time your team currently spends running, loading, monitoring and maintaining kilns each week — across all operators combined."
-          >
-            <NumberInput
-              value={operatorHoursPerWeek}
-              min={0}
-              max={10000}
-              step={0.5}
-              onChange={setOperatorHoursPerWeek}
-              className="w-28"
-            />
-          </FieldRow>
-
-          <FieldRow
-            label="Country"
-            hint="Used to estimate local labour cost in the business case."
-            tooltip="We use the average manufacturing wage in your country to estimate labour costs and potential savings — shown in your local currency."
-          >
-            <select
-              value={country}
-              onChange={(e) => setCountry(e.target.value as CountryCode)}
-              className="rounded-md border border-[var(--color-paper-dark)] bg-[var(--color-paper)] px-3 py-2 text-[0.95rem] font-medium text-[var(--color-ink-900)] outline-none transition-colors focus:border-[var(--color-navy-900)] focus:ring-2 focus:ring-[var(--color-navy-900)]/15"
-            >
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.name}</option>
-              ))}
-            </select>
-          </FieldRow>
-
-          <FieldRow
-            label="Available shifts"
-            hint="How many shifts per day could the upgraded kilns run?"
-            tooltip="Choose how many shifts per day the kilns are allowed to run. This is the total time available for the cycles you entered."
-          >
-            <div className="flex overflow-hidden rounded-md border border-[var(--color-paper-dark)]">
-              {([1, 2, 3] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setAvailableShifts(s)}
-                  className={cn(
-                    "flex h-10 w-12 items-center justify-center text-sm font-semibold transition-colors",
-                    s > 1 && "border-l border-[var(--color-paper-dark)]",
-                    availableShifts === s
-                      ? "bg-[var(--color-navy-900)] text-[var(--color-cream-50)]"
-                      : "bg-[var(--color-paper)] text-[var(--color-ink-900)] hover:bg-[var(--color-paper-dark)]",
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </FieldRow>
-
-          <div className="mt-3 rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-slate-500)]">
-              Annual operator hours
-            </p>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[var(--color-ink-900)]">
-                {(operatorHoursPerWeek * 46).toLocaleString("da-DK")}
-              </span>
-              <span className="text-sm text-[var(--color-slate-500)]">hours / year</span>
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-slate-500)]">
-              {operatorHoursPerWeek.toLocaleString("da-DK")} hrs/week × 46 weeks
-            </p>
-            <p className="mt-2 text-xs text-[var(--color-slate-500)]">
-              ≈{" "}
-              <span className="font-semibold text-[var(--color-ink-900)]">
-                {fmtCurrency(operatorHoursPerWeek * 46 * eurPerHour, selectedCountry.eurToLocal, selectedCountry.currency)}
-              </span>{" "}
-              / year in labour cost
-            </p>
-          </div>
-
-          <NavRow
-            onBack={() => goTo(1)}
-            onNext={() => goTo(3)}
-            nextDisabled={step2NextDisabled}
-            nextDisabledHint={
-              activeProducts.length === 0
-                ? "Select at least one kiln"
-                : totalUnitsPerWeek <= 0
-                  ? "Enter at least one cycle per week"
-                  : operatorHoursPerWeek <= 0
-                    ? "Enter operator hours per week"
-                    : undefined
-            }
-          />
-        </StepShell>
-      )}
-
-      {/* STEP 3 — Upgrade packages */}
-      {step === 3 && (
-        <StepShell
-          headingRef={headingRef}
-          eyebrow="Step 3 of 4 — Upgrade Proposals"
-          title={
-            <>
-              Choose the <em className="not-italic text-[var(--color-tan-500)]">right upgrade</em>
-            </>
-          }
-          description="Based on your data we have matched up to three upgrade packages. Each has a label that explains why it was suggested — click a card to select it, then continue to request your proposal."
-        >
-          {/* Data summary */}
-          <div className="mb-6 rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-slate-500)]">Your data</p>
-            <div className="mt-3 grid grid-cols-4 gap-3">
-              <div>
-                <p className="text-xs text-[var(--color-slate-500)]">Kilns</p>
-                <p className="text-sm font-semibold text-[var(--color-ink-900)]">{activeProducts.length} selected</p>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--color-slate-500)]">Cycles / week</p>
-                <p className="text-sm font-semibold text-[var(--color-ink-900)]">
-                  {activeProducts.reduce((s, p) => s + (quantities[p.id] ?? 0), 0).toLocaleString("en")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--color-slate-500)]">Operator hrs / week</p>
-                <p className="text-sm font-semibold text-[var(--color-ink-900)]">{operatorHoursPerWeek.toLocaleString("en")}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--color-slate-500)]">Available shifts</p>
-                <p className="text-sm font-semibold text-[var(--color-ink-900)]">{availableShifts}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Label legend */}
-          <div className="mb-4 flex flex-wrap gap-3 text-xs text-[var(--color-slate-500)]">
-            <span><span className="font-semibold text-[var(--color-ink-900)]">Conservative</span> = lowest investment</span>
-            <span>·</span>
-            <span><span className="font-semibold text-[var(--color-ink-900)]">Best fit</span> = fastest payback</span>
-            <span>·</span>
-            <span><span className="font-semibold text-[var(--color-ink-900)]">Growth</span> = most spare capacity</span>
-          </div>
-
-          {/* Upgrade cards */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {displayedSolutions.map(({ solution, labels }) => {
-              const isSel = selectedSolutionName === solution.name;
-              const selAuto = automationSelected[solution.name] ?? new Set<string>();
-              const m = calcSolution(solution, activeProducts, quantities, operatorHoursPerWeek, selAuto, eurPerHour, availableShifts);
+          <div className="grid grid-cols-2 gap-3">
+            {PRODUCTS.map(({ key, label, sub }) => {
+              const isSel = product === key;
               return (
-                <button
-                  key={solution.name}
-                  type="button"
-                  onClick={() => setSelectedSolutionName(solution.name)}
+                <button key={key} type="button" onClick={() => setProduct(key)}
                   className={cn(
-                    "relative flex flex-col rounded-xl border-2 p-4 text-left transition-all",
-                    "hover:shadow-md hover:-translate-y-0.5",
-                    isSel
-                      ? "border-[var(--color-navy-900)] bg-[var(--color-paper)] shadow-sm"
-                      : "border-[var(--color-paper-dark)] bg-[var(--color-paper)] hover:border-[var(--color-navy-500)]",
+                    "rounded-lg border p-4 text-left transition-all hover:shadow-sm",
+                    isSel ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)] shadow-sm"
+                          : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
                   )}
                 >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: "var(--color-ink-900)" }}>{label}</p>
+                      <p className="mt-0.5 text-xs" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
+                    </div>
+                    {isSel && <Check className="size-4 shrink-0 mt-0.5" style={{ color: "var(--color-tan-500)" }} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <NavRow onBack={() => goTo(0)} onNext={() => goTo(2)}
+            nextDisabled={!product} nextDisabledHint="Select a product type to continue" />
+        </StepShell>
+      )}
+
+      {/* ── 2: Setup + Condition ────────────────────────────────────────────── */}
+      {step === 2 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 3 of 5 — Setup & Condition"
+          title="Your kilns"
+          description="Configure your kiln fleet and describe the current system state."
+        >
+          <SectionLabel>Setup</SectionLabel>
+
+          <SliderRow label="Number of kilns"              value={kilns}  display={String(kilns)}            min={1}    max={12}   step={1}    onChange={setKilns}  />
+          <SliderRow label="Capacity per kiln (m³)"       value={m3}     display={`${m3} m³`}               min={20}   max={300}  step={10}   onChange={setM3}     />
+          <SliderRow label="Annual operating hours / kiln" value={hours}  display={`${hours.toLocaleString("en")} h`} min={500} max={8760} step={100} onChange={setHours} />
+
+          {/* Divider */}
+          <div className="my-8 flex items-center gap-3">
+            <div className="flex-1 h-px" style={{ background: "var(--color-paper-dark)" }} />
+            <span className="text-xs font-semibold uppercase tracking-widest px-1" style={{ color: "var(--color-ink-300)" }}>
+              Condition
+            </span>
+            <div className="flex-1 h-px" style={{ background: "var(--color-paper-dark)" }} />
+          </div>
+
+          <SliderRow label="Control system generation" value={age} display={AGE_LABELS[age]}
+            min={1} max={3} step={1} onChange={(v) => setAge(v as 1 | 2 | 3)} />
+
+          <div className="mb-5 rounded-r-md border-l-4 p-3 text-sm leading-relaxed"
+            style={{ background: "var(--color-cream-50)", borderLeftColor: "var(--color-tan-500)", color: "var(--color-ink-500)" }}>
+            {AGE_DESCS[age]}
+          </div>
+
+          <div className="mb-5">
+            <p className="mb-3 text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>Inverter drives on fans?</p>
+            <div className="space-y-2">
+              {([
+                { value: false, label: "No — direct on-line motors", sub: "High upgrade impact" },
+                { value: true,  label: "Yes — already fitted",        sub: "Reduced upgrade impact" },
+              ] as const).map(({ value, label, sub }) => (
+                <label key={String(value)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border p-3.5 cursor-pointer transition-all",
+                    inv === value
+                      ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)]"
+                      : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
+                  )}
+                >
+                  <input type="radio" name="inv" value={String(value)} checked={inv === value}
+                    onChange={() => setInv(value)} style={{ accentColor: "var(--color-navy-900)" }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--color-ink-900)" }}>{label}</p>
+                    <p className="text-xs" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Live health score */}
+          <div className="rounded-lg border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "white" }}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>Kiln health score</p>
+              <p className="text-xl font-bold" style={{ color: "var(--color-tan-500)" }}>{savings.health}%</p>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--color-paper-dark)" }}>
+              <div className="h-2 rounded-full transition-all duration-500"
+                style={{
+                  width: `${savings.health}%`,
+                  background: savings.health < 40 ? "#C0601A" : savings.health < 65 ? "#BA7517" : "#3B6D11",
+                }}
+              />
+            </div>
+            <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--color-ink-500)" }}>
+              {savings.health < 40
+                ? "Significant upgrade potential — payback likely under 14 months."
+                : savings.health < 65
+                  ? "Moderate scope — targeted software and fan upgrades deliver strong ROI."
+                  : "Good baseline — cloud and spot-energy optimisation add the next savings layer."}
+            </p>
+          </div>
+
+          <NavRow onBack={() => goTo(1)} onNext={() => goTo(3)} />
+        </StepShell>
+      )}
+
+      {/* ── 3: Energy ───────────────────────────────────────────────────────── */}
+      {step === 3 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 4 of 5 — Energy"
+          title="Energy configuration"
+          description={`Fan power and heat source for your kilns in ${co.name}. Energy prices are pre-configured from country data and will appear on the results page.`}
+        >
+          <SliderRow label="Fan motor power per kiln (kW)" value={fanpow} display={`${fanpow} kW`}
+            min={10} max={150} step={5} onChange={setFanpow} />
+
+          <div className="mt-6">
+            <p className="mb-3 text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>Primary heat source</p>
+            <div className="space-y-2">
+              {HEAT_OPTS.map(({ value, label, sub }) => (
+                <label key={value}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border p-3.5 cursor-pointer transition-all",
+                    heat === value
+                      ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)]"
+                      : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
+                  )}
+                >
+                  <input type="radio" name="heat" value={value} checked={heat === value}
+                    onChange={() => setHeat(value)} style={{ accentColor: "var(--color-navy-900)" }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--color-ink-900)" }}>{label}</p>
+                    <p className="text-xs" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <NavRow onBack={() => goTo(2)} onNext={() => goTo(4)} />
+        </StepShell>
+      )}
+
+      {/* ── 4: Results ──────────────────────────────────────────────────────── */}
+      {step === 4 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 5 of 5 — Results"
+          title={<>Your <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>upgrade potential</em></>}
+          description={`With ${kilns} kiln${kilns > 1 ? "s" : ""} in ${co.name}, here is what three upgrade levels deliver — in ${co.currency}.`}
+        >
+          {/* Pills */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {[
+              co.name,
+              co.currency,
+              `${co.sym}${co.elecPrice.toFixed(2)}/kWh electricity`,
+              `${co.sym}${co.gasPrice.toFixed(2)}/kWh gas`,
+              ...(co.fxRate !== 1 ? [`${co.fxLabel} (fixed ref. Jun 2025)`] : []),
+            ].map((pill) => (
+              <span key={pill} className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
+                style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-500)", background: "white" }}>
+                {pill}
+              </span>
+            ))}
+          </div>
+
+          {/* Financial metrics */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <MetricCard label="Annual savings (est.)"  value={`${fmtLocal(savings.totalDKK, co)}/yr`}           sub="across all kilns"      />
+            <MetricCard label="Electricity saving"     value={`${Math.round(savings.elecSavePct * 100)}% less`} sub="Stop & Go + inverters" />
+            <MetricCard label="Thermal saving"
+              value={heat === "boiler" ? "~25% less" : heat === "heatpump" ? "~12% less" : "N/A"}
+              sub="heat recovery" />
+          </div>
+
+          {/* CO₂ */}
+          <div className="mb-6 rounded-xl border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "var(--color-cream-50)" }}>
+            <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--color-ink-900)" }}>
+              CO₂ impact of upgrade
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+              <MetricCard label="Fan electricity — now"  value={`${savings.currentFanCO2t.toFixed(1)} t/yr`}
+                sub={`${ef.electricity} gCO₂/kWh grid`} />
+              <MetricCard label="Saved — electricity"   value={`${savings.savedFanCO2t.toFixed(1)} t/yr`}
+                sub={`${Math.round(savings.elecSavePct * 100)}% fan energy reduction`} />
+              {savings.savedHeatCO2t > 0.05 && (
+                <MetricCard label={`Saved — ${heat === "boiler" ? "heat" : "heat pump"}`}
+                  value={`${savings.savedHeatCO2t.toFixed(1)} t/yr`}
+                  sub={heat === "heatpump"
+                    ? `${ef.heatpump} gCO₂/kWh · COP 3.2`
+                    : `${ef.boiler} gCO₂/kWh · ${ef.boilerLabel}`} />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t" style={{ borderColor: "var(--color-paper-dark)" }}>
+              <p className="text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>
+                Total: <strong style={{ color: "var(--color-tan-500)" }}>{savings.totalSavedCO2t.toFixed(1)} t CO₂eq/yr</strong>
+              </p>
+              {savings.totalSavedCO2t >= 1 && (
+                <p className="text-xs" style={{ color: "var(--color-ink-500)" }}>
+                  ≈ {Math.round(savings.totalSavedCO2t / 2.3)} passenger cars off the road per year
+                </p>
+              )}
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
+              Thermal load estimated at {kilns}×{m3} m³ × 280 kWh/m³/yr.
+              {heat === "boiler"   ? ` Boiler: ${ef.boilerLabel}.` : ""}
+              {heat === "heatpump" ? ` Heat pump COP 3.2 assumed.` : ""}
+            </p>
+          </div>
+
+          {/* Packages */}
+          <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--color-ink-900)" }}>
+            Three ways to capture these savings
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3 mb-6">
+            {packages.map((pkg) => {
+              const isSel = selectedPkg === pkg.name;
+              const mid   = (pkg.saveLo + pkg.saveHi) / 2;
+              const pb    = mid > 0 ? (pkg.invHi / mid).toFixed(1) : "—";
+              return (
+                <button key={pkg.name} type="button"
+                  onClick={() => setSelectedPkg(isSel ? null : pkg.name)}
+                  className={cn(
+                    "relative rounded-xl border-2 p-4 text-left transition-all hover:shadow-md hover:-translate-y-0.5",
+                    isSel
+                      ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)] shadow-sm"
+                      : pkg.featured
+                        ? "border-[var(--color-navy-900)]/35 bg-white"
+                        : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
+                  )}
+                >
+                  {pkg.featured && !isSel && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--color-navy-900)] px-3 py-0.5 text-[10px] font-semibold text-white">
+                      Most chosen
+                    </span>
+                  )}
                   {isSel && (
                     <span className="absolute right-3 top-3 inline-flex size-5 items-center justify-center rounded-full bg-[var(--color-navy-900)] text-white">
                       <Check className="size-3" />
                     </span>
                   )}
-
-                  {/* Package image */}
-                  {solution.image ? (
-                    <div className="mb-3 -mx-4 -mt-4 overflow-hidden rounded-t-xl bg-[var(--color-cream-50)]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={solution.image}
-                        alt={solution.name}
-                        className="h-36 w-full object-contain px-4 py-3"
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="mb-3 flex flex-wrap gap-1">
-                    {labels.map(({ label, badge }) => (
-                      <span key={label} className={cn("inline-block rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider", badge)}>
-                        {label}
-                      </span>
+                  <p className="pr-7 font-bold text-sm leading-snug" style={{ color: "var(--color-ink-900)" }}>{pkg.name}</p>
+                  <p className="mt-0.5 mb-3 text-[10px]" style={{ color: "var(--color-ink-300)" }}>{pkg.tag}</p>
+                  <div className="h-px mb-3" style={{ background: "var(--color-paper-dark)" }} />
+                  <p className="font-bold text-lg leading-none" style={{ color: "var(--color-ink-900)" }}>
+                    {fmtLocal(pkg.saveLo, co)}–{fmtLocal(pkg.saveHi, co)}
+                  </p>
+                  <p className="mb-3 text-[10px]" style={{ color: "var(--color-ink-300)" }}>estimated annual savings</p>
+                  <ul className="mb-4 space-y-1">
+                    {pkg.items.map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-xs" style={{ color: "var(--color-ink-500)" }}>
+                        <span className="shrink-0 font-bold" style={{ color: "var(--color-tan-500)" }}>—</span>
+                        {item}
+                      </li>
                     ))}
+                  </ul>
+                  <div className="border-t pt-2.5 text-xs" style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-500)" }}>
+                    Investment: <strong style={{ color: "var(--color-ink-900)" }}>{fmtLocal(pkg.invLo, co)}–{fmtLocal(pkg.invHi, co)}</strong>
+                    <br />Payback: <strong style={{ color: "var(--color-ink-900)" }}>~{pb} yr</strong>
                   </div>
-                  <p className="pr-6 text-sm font-semibold leading-snug text-[var(--color-ink-900)]">{solution.name}</p>
-                  {solution.description && (
-                    <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-500)]">{solution.description}</p>
-                  )}
-
-                  {/* Core metrics */}
-                  <div className="mt-4 grid gap-2 text-sm">
-                    <SolutionMetric label="Kiln hours / week" value={`${m.weeklyMachineHours.toFixed(1)} hrs`} highlight />
-                    <SolutionMetric
-                      label="Payback period"
-                      value={
-                        !Number.isFinite(m.paybackYears)
-                          ? "Contact us"
-                          : m.paybackYears > 5
-                            ? "Reach out to us →"
-                            : `~ ${m.paybackYears.toFixed(1)} yrs`
-                      }
-                      highlight
-                    />
-                  </div>
-
                 </button>
               );
             })}
           </div>
 
-          {/* Automation note */}
-          <div className="mt-4 rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-slate-500)]">
-              Automation Add-on
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-500)]">
-              All upgrade packages above can be extended with monitoring and automation — typically delivering a{" "}
-              <span className="font-semibold text-[var(--color-ink-900)]">10–20% improvement in OEE</span>{" "}
-              through automated damper control, predictive maintenance, and real-time energy tracking.
-              Our team will include this option in the personalised proposal sent to you.
-            </p>
-          </div>
+          {/* Disclaimer */}
+          <p className="mb-6 text-xs leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
+            <strong style={{ color: "var(--color-ink-500)" }}>Reference prices:</strong>{" "}
+            electricity {co.sym}{co.elecPrice.toFixed(2)}/kWh · gas {co.sym}{co.gasPrice.toFixed(2)}/kWh · {co.name} typical industrial.
+            {co.fxRate !== 1 ? ` Converted from DKK at ${co.fxLabel} (fixed rate, Jun 2025).` : ""}
+            {" "}<strong style={{ color: "var(--color-ink-500)" }}>Actual savings require on-site technical assessment.</strong>
+          </p>
 
-          <NavRow
-            onBack={() => goTo(2)}
-            onNext={() => goTo(4)}
-            nextDisabled={step3NextDisabled}
-            nextDisabledHint={step3NextDisabled ? "Select an upgrade to continue" : undefined}
-          />
+          {/* CTA */}
+          <div className="rounded-lg border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "white" }}>
+            <p className="mb-4 text-sm leading-relaxed" style={{ color: "var(--color-ink-500)" }}>
+              These are your numbers. A 30-minute conversation with our team pressure-tests them against your
+              actual operation — free, no commitment.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <SecondaryButton onClick={() => goTo(3)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
+              <PrimaryButton   onClick={() => goTo(5)}>Get in touch <ArrowRight className="size-4" aria-hidden /></PrimaryButton>
+            </div>
+          </div>
         </StepShell>
       )}
 
-      {/* STEP 4 — Contact */}
-      {step === 4 && (
-        <StepShell
-          headingRef={headingRef}
-          eyebrow="Step 4 of 4 — Get in Touch"
-          title={
-            <>
-              Let&apos;s turn this into a <em className="not-italic text-[var(--color-tan-500)]">real proposal</em>
-            </>
-          }
+      {/* ── 5: Contact ──────────────────────────────────────────────────────── */}
+      {step === 5 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Get in Touch"
+          title={<>Let&apos;s turn this into a <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>real proposal</em></>}
           description="No commitment required. Fill in your details and a Nicholaisen specialist will send you the full calculation and reach out to answer any questions."
         >
           <form onSubmit={handleSubmit} noValidate className="grid gap-4">
-            <TextField
-              id="contactName"
-              label="Full name"
-              required
-              autoComplete="name"
-              placeholder="Jane Doe"
-              value={contact.name}
-              onChange={(v) => {
-                setContact((c) => ({ ...c, name: v }));
-                if (errors.name) setErrors((e) => ({ ...e, name: false }));
-              }}
-              invalid={!!errors.name}
-              errorMessage={errors.name ? "Please enter your name." : undefined}
-            />
-            <TextField
-              id="contactEmail"
-              label="Work email"
-              required
-              type="email"
-              autoComplete="email"
-              placeholder="jane@company.com"
-              value={contact.email}
-              onChange={(v) => {
-                setContact((c) => ({ ...c, email: v }));
-                if (errors.email) setErrors((e) => ({ ...e, email: false }));
-              }}
-              onBlur={(v) => {
-                if (v.trim() && !emailOk(v.trim())) {
-                  setErrors((e) => ({ ...e, email: true }));
-                }
-              }}
-              invalid={!!errors.email}
-              errorMessage={errors.email ? "Enter a valid email address." : undefined}
-            />
-            <TextField
-              id="contactJob"
-              label="Job title"
-              required
-              autoComplete="organization-title"
-              placeholder="Production Manager"
-              value={contact.job}
-              onChange={(v) => {
-                setContact((c) => ({ ...c, job: v }));
-                if (errors.job) setErrors((e) => ({ ...e, job: false }));
-              }}
-              invalid={!!errors.job}
-              errorMessage={errors.job ? "Please enter your job title." : undefined}
-            />
-            <TextField
-              id="contactCompany"
-              label="Company"
-              autoComplete="organization"
-              placeholder="Optional"
-              value={contact.company}
-              onChange={(v) => setContact((c) => ({ ...c, company: v }))}
-            />
+            <TextField id="contactName"    label="Full name"   required autoComplete="name"
+              placeholder="Jane Doe"           value={contact.name}    type="text"
+              onChange={(v) => { setContact((c) => ({ ...c, name: v }));    if (errors.name)  setErrors((e) => ({ ...e, name:  false })); }}
+              invalid={!!errors.name}    errorMessage={errors.name    ? "Please enter your name."       : undefined} />
+            <TextField id="contactEmail"   label="Work email"  required autoComplete="email"
+              placeholder="jane@company.com"   value={contact.email}   type="email"
+              onChange={(v) => { setContact((c) => ({ ...c, email: v }));   if (errors.email) setErrors((e) => ({ ...e, email: false })); }}
+              onBlur={(v) => { if (v.trim() && !emailOk(v.trim())) setErrors((e) => ({ ...e, email: true })); }}
+              invalid={!!errors.email}   errorMessage={errors.email   ? "Enter a valid email address."  : undefined} />
+            <TextField id="contactJob"     label="Job title"   required autoComplete="organization-title"
+              placeholder="Production Manager" value={contact.job}     type="text"
+              onChange={(v) => { setContact((c) => ({ ...c, job: v }));     if (errors.job)   setErrors((e) => ({ ...e, job:   false })); }}
+              invalid={!!errors.job}     errorMessage={errors.job     ? "Please enter your job title."  : undefined} />
+            <TextField id="contactCompany" label="Company"              autoComplete="organization"
+              placeholder="Optional"           value={contact.company} type="text"
+              onChange={(v) => setContact((c) => ({ ...c, company: v }))} />
 
-            {/* Honeypot — hidden from real users */}
             <div className="hidden" aria-hidden>
               <label htmlFor="website">Website</label>
-              <input
-                id="website"
-                type="text"
-                tabIndex={-1}
-                autoComplete="off"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-              />
+              <input id="website" type="text" tabIndex={-1} autoComplete="off"
+                value={website} onChange={(e) => setWebsite(e.target.value)} />
             </div>
 
-            {formError ? (
-              <p className="text-sm text-[#b3261e]" role="alert">
-                {formError}
-              </p>
-            ) : null}
+            {formError && <p className="text-sm text-[#b3261e]" role="alert">{formError}</p>}
 
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <SecondaryButton type="button" onClick={() => goTo(3)}>
-                <ArrowLeft className="size-4" aria-hidden /> Back
-              </SecondaryButton>
+              <SecondaryButton type="button" onClick={() => goTo(4)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
               <PrimaryButton type="submit" disabled={submitting} aria-busy={submitting || undefined}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    Request proposal
-                    <ArrowRight className="size-4" aria-hidden />
-                  </>
-                )}
+                {submitting
+                  ? <><Loader2 className="size-4 animate-spin" aria-hidden />Sending…</>
+                  : <>Request proposal <ArrowRight className="size-4" aria-hidden /></>}
               </PrimaryButton>
             </div>
           </form>
         </StepShell>
       )}
 
-      {/* STEP 5 — Thanks */}
-      {step === 5 && (
-        <StepShell
-          headingRef={headingRef}
+      {/* ── 6: Thank you ────────────────────────────────────────────────────── */}
+      {step === 6 && (
+        <StepShell headingRef={headingRef}
           eyebrow="Submission Received"
-          title={
-            <>
-              Thank you, <em className="not-italic text-[var(--color-tan-500)]">{firstName}!</em>
-            </>
-          }
-          description={
-            <>
-              Your request has been received. A Nicholaisen specialist will contact{" "}
-              <strong className="text-[var(--color-ink-900)]">{contact.email || "you"}</strong>{" "}
-              to take the conversation further.
-            </>
-          }
+          title={<>Thank you, <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>{firstName}!</em></>}
+          description={<>Your request has been received. A Nicholaisen specialist will contact{" "}
+            <strong style={{ color: "var(--color-ink-900)" }}>{contact.email || "you"}</strong>{" "}
+            to take the conversation further.</>}
         >
-          <div className="mb-8 rounded-md border border-[var(--color-paper-dark)] border-l-4 border-l-[var(--color-navy-900)] bg-[var(--color-paper)] p-5 text-sm leading-relaxed text-[var(--color-ink-500)]">
-            <strong className="text-[var(--color-ink-900)]">What happens next?</strong>
-            <br />We will review your kiln data and selected upgrade package, then reach out within 1–2
-            business days to discuss your specific case, answer questions, and prepare a
-            priced proposal matched to your actual requirements.
+          <div className="mb-8 rounded-md border p-5 text-sm leading-relaxed"
+            style={{ borderColor: "var(--color-paper-dark)", borderLeft: "4px solid var(--color-navy-900)", color: "var(--color-ink-500)" }}>
+            <strong style={{ color: "var(--color-ink-900)" }}>What happens next?</strong><br />
+            We will review your kiln data and selected upgrade package, then reach out within 1–2 business
+            days to discuss your specific case, answer questions, and prepare a priced proposal matched to
+            your actual requirements.
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <PrimaryButton
-              onClick={() => {
-                resetForm();
-                goTo(0);
-              }}
-            >
-              Submit another
-            </PrimaryButton>
-          </div>
+          <PrimaryButton onClick={() => { resetForm(); goTo(0); }}>Submit another</PrimaryButton>
         </StepShell>
       )}
     </div>
   );
 }
 
-/* -------- helper components -------- */
+// ── Helper components ─────────────────────────────────────────────────────────
 
-function StepShell({
-  eyebrow,
-  title,
-  description,
-  children,
-  headingRef,
-}: {
-  eyebrow: string;
-  title: React.ReactNode;
-  description: React.ReactNode;
-  children: React.ReactNode;
-  headingRef?: React.Ref<HTMLHeadingElement>;
+function StepShell({ eyebrow, title, description, children, headingRef }: {
+  eyebrow: string; title: ReactNode; description: ReactNode;
+  children: ReactNode; headingRef?: Ref<HTMLHeadingElement>;
 }) {
   return (
     <div className="animate-[fadeUp_.35s_ease_forwards]">
-      <p className="text-eyebrow text-[var(--color-tan-500)]">{eyebrow}</p>
-      <h2
-        ref={headingRef}
-        tabIndex={-1}
-        className="mt-3 text-display-3 text-balance text-[var(--color-ink-900)] outline-none"
-      >
+      <p style={{ color: "var(--color-tan-500)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        {eyebrow}
+      </p>
+      <h2 ref={headingRef} tabIndex={-1} className="mt-3 font-bold text-balance outline-none"
+        style={{ fontSize: "clamp(1.5rem,4vw,2rem)", color: "var(--color-ink-900)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
         {title}
       </h2>
-      <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--color-ink-500)]">
+      <p className="mt-4 max-w-xl text-base leading-relaxed" style={{ color: "var(--color-ink-500)" }}>
         {description}
       </p>
       <div className="mt-8">{children}</div>
@@ -952,279 +711,113 @@ function StepShell({
   );
 }
 
-function IntroCard({ phase, title, desc }: { phase: string; title: string; desc: string }) {
+function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] p-5">
-      <p className="text-eyebrow text-[var(--color-tan-500)]">{phase}</p>
-      <p className="mt-2 font-semibold text-[var(--color-ink-900)]">{title}</p>
-      <p className="mt-1 text-sm leading-relaxed text-[var(--color-ink-500)]">{desc}</p>
-    </div>
+    <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--color-ink-900)" }}>
+      {children}
+    </p>
   );
 }
 
-function InfoTooltip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="More information"
-        className="inline-flex items-center justify-center rounded-full text-[var(--color-slate-500)] transition-colors hover:text-[var(--color-ink-900)]"
-      >
-        <Info className="size-3.5" />
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute bottom-full left-0 z-20 mb-2 w-60 rounded-lg bg-[var(--color-ink-900)] px-3 py-2.5 text-xs leading-relaxed text-[var(--color-cream-50)] shadow-xl"
-        >
-          {text}
-          <span className="absolute left-2 top-full border-4 border-transparent border-t-[var(--color-ink-900)]" />
-        </span>
-      )}
-    </span>
-  );
-}
-
-function FieldRow({
-  label,
-  hint,
-  unit,
-  tooltip,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  unit?: string;
-  tooltip?: string;
-  children: React.ReactNode;
+function SliderRow({ label, value, display, min, max, step, onChange }: {
+  label: string; value: number; display: string;
+  min: number; max: number; step: number; onChange: (v: number) => void;
 }) {
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[var(--color-paper-dark)] bg-[var(--color-paper)] p-5 focus-within:border-[var(--color-navy-900)]">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-ink-900)]">
-          {label}
-          {tooltip && <InfoTooltip text={tooltip} />}
-        </div>
-        {hint ? <div className="mt-0.5 text-xs text-[var(--color-slate-500)]">{hint}</div> : null}
+    <div className="mb-5">
+      <div className="flex justify-between items-baseline mb-1.5">
+        <label className="text-sm" style={{ color: "var(--color-ink-500)" }}>{label}</label>
+        <span className="text-base font-semibold" style={{ color: "var(--color-ink-900)" }}>{display}</span>
       </div>
-      <div className="flex items-center gap-2">
-        {children}
-        {unit ? (
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-slate-500)]">
-            {unit}
-          </span>
-        ) : null}
-      </div>
+      <input type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full h-1 cursor-pointer" style={{ accentColor: "var(--color-navy-900)" }} />
     </div>
   );
 }
 
-function TextField({
-  id,
-  label,
-  value,
-  onChange,
-  onBlur,
-  required,
-  type = "text",
-  autoComplete,
-  placeholder,
-  invalid,
-  errorMessage,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur?: (v: string) => void;
-  required?: boolean;
-  type?: string;
-  autoComplete?: string;
-  placeholder?: string;
-  invalid?: boolean;
-  errorMessage?: string;
-}) {
-  const errorId = `${id}-error`;
+function MetricCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={id} className="text-sm font-semibold text-[var(--color-ink-900)]">
-        {label}
-        {required ? <span className="ml-1 text-[var(--color-tan-500)]">*</span> : null}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid && errorMessage ? errorId : undefined}
-        className={cn(
-          "w-full rounded-md border bg-[var(--color-paper)] px-3.5 py-2.5 text-[0.95rem] outline-none transition-colors",
-          "focus:border-[var(--color-navy-900)] focus:ring-2 focus:ring-[var(--color-navy-900)]/15",
-          invalid
-            ? "border-[#b3261e] focus:border-[#b3261e] focus:ring-[#b3261e]/15"
-            : "border-[var(--color-paper-dark)]",
-        )}
-      />
-      {invalid && errorMessage ? (
-        <p id={errorId} className="text-xs text-[#b3261e]">
-          {errorMessage}
-        </p>
-      ) : null}
+    <div className="rounded-lg border p-4" style={{ borderColor: "var(--color-paper-dark)", background: "white" }}>
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--color-ink-300)" }}>{label}</p>
+      <p className="text-lg font-bold leading-tight" style={{ color: "var(--color-ink-900)" }}>{value}</p>
+      <p className="mt-1 text-[10px]" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
     </div>
   );
 }
 
-function NumberInput({
-  id,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  className,
-}: {
-  id?: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  className?: string;
-}) {
-  return (
-    <input
-      id={id}
-      type="number"
-      inputMode={step && step % 1 !== 0 ? "decimal" : "numeric"}
-      step={step}
-      value={Number.isFinite(value) ? value : 0}
-      min={min}
-      max={max}
-      onChange={(e) => {
-        const n = parseFloat(e.target.value);
-        onChange(Number.isFinite(n) ? n : 0);
-      }}
-      onFocus={(e) => e.target.select()}
-      onWheel={(e) => (e.target as HTMLInputElement).blur()}
-      className={cn(
-        "rounded-md border border-[var(--color-paper-dark)] bg-[var(--color-paper)] px-3 py-2 text-right text-[0.95rem] font-medium text-[var(--color-ink-900)] outline-none transition-colors",
-        "focus:border-[var(--color-navy-900)] focus:ring-2 focus:ring-[var(--color-navy-900)]/15",
-        "appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-        className,
-      )}
-    />
-  );
-}
-
-function PrimaryButton({
-  children,
-  type = "button",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type={type}
-      {...props}
-      className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[var(--color-navy-900)] px-5 text-[0.95rem] font-medium text-[var(--color-cream-50)] transition-all",
-        "hover:bg-[var(--color-navy-700)] hover:shadow-sm active:translate-y-px",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-navy-900)] disabled:hover:shadow-none disabled:active:translate-y-0",
-        props.className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SecondaryButton({
-  children,
-  type = "button",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type={type}
-      {...props}
-      className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[var(--color-navy-900)]/20 bg-transparent px-5 text-[0.95rem] font-medium text-[var(--color-ink-900)] transition-colors",
-        "hover:border-[var(--color-navy-900)]/60 hover:bg-[var(--color-paper-dark)]/40",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        props.className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SmallButton({
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={cn(
-        "inline-flex items-center rounded border border-[var(--color-paper-dark)] bg-transparent px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-slate-500)] transition-colors",
-        "hover:border-[var(--color-navy-900)] hover:text-[var(--color-ink-900)]",
-        props.className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SolutionMetric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-xs text-[var(--color-slate-500)]">{label}</span>
-      <span className={cn("text-sm font-semibold", highlight ? "text-[var(--color-ink-900)]" : "text-[var(--color-ink-700)]")}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function NavRow({
-  onBack,
-  onNext,
-  nextDisabled,
-  nextDisabledHint,
-}: {
-  onBack: () => void;
-  onNext: () => void;
-  nextDisabled?: boolean;
-  nextDisabledHint?: string;
+function NavRow({ onBack, onNext, nextDisabled, nextDisabledHint }: {
+  onBack: () => void; onNext: () => void; nextDisabled?: boolean; nextDisabledHint?: string;
 }) {
   return (
     <div className="mt-8 flex flex-wrap items-center gap-3">
-      <SecondaryButton onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden /> Back
-      </SecondaryButton>
-      <PrimaryButton
-        onClick={onNext}
-        disabled={nextDisabled}
-        title={nextDisabled ? nextDisabledHint : undefined}
-        aria-label={nextDisabled && nextDisabledHint ? nextDisabledHint : undefined}
-      >
+      <SecondaryButton onClick={onBack}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
+      <PrimaryButton onClick={onNext} disabled={nextDisabled} title={nextDisabled ? nextDisabledHint : undefined}>
         Next <ArrowRight className="size-4" aria-hidden />
       </PrimaryButton>
-      {nextDisabled && nextDisabledHint ? (
-        <p className="text-xs text-[var(--color-slate-500)]">{nextDisabledHint}</p>
-      ) : null}
+      {nextDisabled && nextDisabledHint && (
+        <p className="text-xs" style={{ color: "var(--color-ink-300)" }}>{nextDisabledHint}</p>
+      )}
     </div>
+  );
+}
+
+function TextField({ id, label, value, onChange, onBlur, required, type = "text",
+  autoComplete, placeholder, invalid, errorMessage }: {
+  id: string; label: string; value: string; onChange: (v: string) => void;
+  onBlur?: (v: string) => void; required?: boolean; type?: string;
+  autoComplete?: string; placeholder?: string; invalid?: boolean; errorMessage?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>
+        {label}
+        {required && <span className="ml-1" style={{ color: "var(--color-tan-500)" }}>*</span>}
+      </label>
+      <input id={id} type={type} value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
+        autoComplete={autoComplete} placeholder={placeholder}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid && errorMessage ? `${id}-error` : undefined}
+        className={cn(
+          "w-full rounded-md border px-3.5 py-2.5 text-[0.95rem] outline-none transition-colors focus:ring-2 focus:ring-[var(--color-navy-900)]/15",
+          invalid
+            ? "border-[#b3261e] focus:border-[#b3261e] focus:ring-[#b3261e]/15"
+            : "border-[var(--color-paper-dark)] focus:border-[var(--color-navy-900)]",
+        )}
+        style={{ background: "var(--color-paper)", color: "var(--color-ink-900)" }}
+      />
+      {invalid && errorMessage && (
+        <p id={`${id}-error`} className="text-xs text-[#b3261e]">{errorMessage}</p>
+      )}
+    </div>
+  );
+}
+
+function PrimaryButton({ children, type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type={type} {...props}
+      className={cn(
+        "inline-flex h-11 items-center justify-center gap-2 rounded-md px-5 text-[0.95rem] font-medium transition-all",
+        "hover:opacity-85 hover:shadow-sm active:translate-y-px",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 disabled:hover:shadow-none disabled:active:translate-y-0",
+        props.className,
+      )}
+      style={{ background: "var(--color-navy-900)", color: "var(--color-cream-50)" }}
+    >{children}</button>
+  );
+}
+
+function SecondaryButton({ children, type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type={type} {...props}
+      className={cn(
+        "inline-flex h-11 items-center justify-center gap-2 rounded-md border px-5 text-[0.95rem] font-medium transition-colors",
+        "hover:bg-[var(--color-paper-dark)]/40 disabled:opacity-50 disabled:cursor-not-allowed",
+        props.className,
+      )}
+      style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-900)", background: "transparent", borderWidth: 1.5 }}
+    >{children}</button>
   );
 }
