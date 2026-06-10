@@ -15,8 +15,8 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 // ── Step ──────────────────────────────────────────────────────────────────────
-// 0–4: wizard   5: contact   6: thank you
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+// 0–5: wizard   6: contact   7: thank you
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 // ── Countries ─────────────────────────────────────────────────────────────────
 type CountryKey = "dk" | "se" | "no" | "fi" | "ee" | "lv" | "lt" | "pl" | "de";
@@ -27,41 +27,49 @@ interface Country {
   sym: string;
   fxRate: number;
   fxLabel: string;
-  elecPrice: number;
-  gasPrice: number;
+  elecPrice: number;  // local currency / kWh
+  woodPrice: number;  // wood chips (flis) local currency / kWh
+  oilPrice: number;   // heating oil local currency / kWh
+  gasPrice: number;   // natural gas local currency / kWh
 }
 
+// Prices in local currency / kWh.  Wood ≈ 0.35 DKK eq · Oil ≈ 0.85 DKK eq · Gas as before.
 const COUNTRIES: Record<CountryKey, Country> = {
-  dk: { name: "Denmark",   currency: "DKK", sym: "DKK ", fxRate: 1,     fxLabel: "base currency",     elecPrice: 1.40, gasPrice: 0.65 },
-  se: { name: "Sweden",    currency: "SEK", sym: "SEK ", fxRate: 1.44,  fxLabel: "1 DKK = 1.44 SEK",  elecPrice: 1.20, gasPrice: 0.55 },
-  no: { name: "Norway",    currency: "NOK", sym: "NOK ", fxRate: 1.50,  fxLabel: "1 DKK = 1.50 NOK",  elecPrice: 0.80, gasPrice: 0.50 },
-  fi: { name: "Finland",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, gasPrice: 0.08 },
-  ee: { name: "Estonia",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.14, gasPrice: 0.09 },
-  lv: { name: "Latvia",    currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.15, gasPrice: 0.08 },
-  lt: { name: "Lithuania", currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, gasPrice: 0.08 },
-  pl: { name: "Poland",    currency: "PLN", sym: "PLN ", fxRate: 0.524, fxLabel: "1 DKK = 0.524 PLN", elecPrice: 0.72, gasPrice: 0.35 },
-  de: { name: "Germany",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.20, gasPrice: 0.12 },
+  dk: { name: "Denmark",   currency: "DKK", sym: "DKK ", fxRate: 1,     fxLabel: "base currency",     elecPrice: 1.40, woodPrice: 0.35, oilPrice: 0.85, gasPrice: 0.65 },
+  se: { name: "Sweden",    currency: "SEK", sym: "SEK ", fxRate: 1.44,  fxLabel: "1 DKK = 1.44 SEK",  elecPrice: 1.20, woodPrice: 0.50, oilPrice: 1.22, gasPrice: 0.55 },
+  no: { name: "Norway",    currency: "NOK", sym: "NOK ", fxRate: 1.50,  fxLabel: "1 DKK = 1.50 NOK",  elecPrice: 0.80, woodPrice: 0.53, oilPrice: 1.28, gasPrice: 0.50 },
+  fi: { name: "Finland",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, woodPrice: 0.047, oilPrice: 0.114, gasPrice: 0.08 },
+  ee: { name: "Estonia",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.14, woodPrice: 0.040, oilPrice: 0.114, gasPrice: 0.09 },
+  lv: { name: "Latvia",    currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.15, woodPrice: 0.038, oilPrice: 0.114, gasPrice: 0.08 },
+  lt: { name: "Lithuania", currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.13, woodPrice: 0.038, oilPrice: 0.114, gasPrice: 0.08 },
+  pl: { name: "Poland",    currency: "PLN", sym: "PLN ", fxRate: 0.524, fxLabel: "1 DKK = 0.524 PLN", elecPrice: 0.72, woodPrice: 0.18,  oilPrice: 0.45,  gasPrice: 0.35 },
+  de: { name: "Germany",   currency: "EUR", sym: "€",    fxRate: 0.134, fxLabel: "1 DKK = 0.134 EUR", elecPrice: 0.20, woodPrice: 0.047, oilPrice: 0.114, gasPrice: 0.12 },
 };
 
 // ── Emission factors ──────────────────────────────────────────────────────────
 interface EmissionFactors {
-  electricity: number;
-  boiler: number;
-  boilerLabel: string;
-  heatpump: number;
+  electricity: number;  // grid gCO₂eq/kWh (country-specific)
+  heatpump: number;     // electricity / COP 3.2
 }
 
 const EMISSION_FACTORS: Record<CountryKey, EmissionFactors> = {
-  dk: { electricity: 172, boiler:  30, boilerLabel: "wood waste (biogenic)", heatpump: 54  },
-  se: { electricity:  13, boiler:  20, boilerLabel: "wood waste (biogenic)", heatpump:  4  },
-  no: { electricity:  26, boiler:  20, boilerLabel: "wood waste (biogenic)", heatpump:  8  },
-  fi: { electricity:  98, boiler:  30, boilerLabel: "wood waste (biogenic)", heatpump: 31  },
-  ee: { electricity: 390, boiler:  80, boilerLabel: "mixed wood / gas",      heatpump: 122 },
-  lv: { electricity: 125, boiler:  50, boilerLabel: "wood waste (biogenic)", heatpump: 39  },
-  lt: { electricity: 185, boiler:  80, boilerLabel: "mixed wood / gas",      heatpump: 58  },
-  pl: { electricity: 705, boiler: 270, boilerLabel: "mixed coal / gas",      heatpump: 220 },
-  de: { electricity: 385, boiler: 205, boilerLabel: "natural gas",           heatpump: 120 },
+  dk: { electricity: 172, heatpump: 54  },
+  se: { electricity:  13, heatpump:  4  },
+  no: { electricity:  26, heatpump:  8  },
+  fi: { electricity:  98, heatpump: 31  },
+  ee: { electricity: 390, heatpump: 122 },
+  lv: { electricity: 125, heatpump: 39  },
+  lt: { electricity: 185, heatpump: 58  },
+  pl: { electricity: 705, heatpump: 220 },
+  de: { electricity: 385, heatpump: 120 },
 };
+
+/** Combustion emission factors — fixed, not country-specific (gCO₂eq/kWh) */
+const FUEL_EMISSIONS = {
+  wood:  30,   // biogenic wood chips / flis
+  oil:  265,   // heating oil
+  gas:  205,   // natural gas
+} as const;
 
 // ── Products ──────────────────────────────────────────────────────────────────
 type ProductKey = "lumber" | "flooring" | "furniture" | "pallets";
@@ -73,62 +81,118 @@ const PRODUCTS: { key: ProductKey; label: string; sub: string }[] = [
   { key: "pallets",   label: "Pallets / packaging",  sub: "ISPM 15 treatment"       },
 ];
 
-// ── Age ───────────────────────────────────────────────────────────────────────
-const AGE_LABELS: Record<1 | 2 | 3, string> = {
+// ── Age labels ────────────────────────────────────────────────────────────────
+const KILN_AGE_LABELS: Record<1 | 2 | 3, string> = {
+  1: "Legacy (built before 2000)",
+  2: "Standard (2000–2015)",
+  3: "Modern (post-2015)",
+};
+
+const CTRL_AGE_LABELS: Record<1 | 2 | 3, string> = {
   1: "Legacy (pre-2015)",
   2: "Mid-gen (2015–2020)",
   3: "Modern (post-2020)",
 };
-const AGE_DESCS: Record<1 | 2 | 3, string> = {
+const CTRL_AGE_DESCS: Record<1 | 2 | 3, string> = {
   1: "Pre-2015 system — full upgrade scope. Stop & Go, wireless probes and inverters not yet available.",
   2: "Partial upgrade scope — inverters and wireless probes deliver the strongest gains.",
   3: "Recent system — cloud and AI optimisation unlock the next savings layer.",
 };
 
 // ── Heat source ───────────────────────────────────────────────────────────────
-type HeatSource = "boiler" | "electric" | "heatpump";
+type HeatSource = "wood" | "oil" | "gas" | "electric" | "heatpump";
 
 const HEAT_OPTS: { value: HeatSource; label: string; sub: string }[] = [
-  { value: "boiler",   label: "Thermal boiler (wood / oil / gas)", sub: "High thermal saving potential" },
-  { value: "electric", label: "Electric heating",                   sub: "Electricity savings dominant"  },
-  { value: "heatpump", label: "Heat pump",                          sub: "Combined savings"              },
+  { value: "wood",     label: "Wood chips boiler (flis / biomass)", sub: "Low fuel cost · biogenic carbon"   },
+  { value: "oil",      label: "Oil boiler",                         sub: "High fuel cost · high emissions"  },
+  { value: "gas",      label: "Gas boiler",                         sub: "Medium fuel cost · lower emissions" },
+  { value: "electric", label: "Electric heating",                   sub: "Electricity savings dominant"     },
+  { value: "heatpump", label: "Heat pump",                          sub: "Combined savings · COP 3.2"       },
 ];
 
 // ── Savings + CO₂ calculation ─────────────────────────────────────────────────
 function calcSavings(s: {
   country: CountryKey; kilns: number; m3: number; fanpow: number; hours: number;
   inv: boolean; heat: HeatSource; age: 1 | 2 | 3;
+  kilnAge: 1 | 2 | 3; heatRecov: boolean; tunnelFan: boolean;
+  stopAndGo: boolean; remoteCtrl: boolean;
+  materialValueDkk: number; wastePercent: number; cycles: number; cycleHours: number;
 }) {
   const co = COUNTRIES[s.country];
   const ef = EMISSION_FACTORS[s.country];
 
   const annualFanEnergy = s.kilns * s.fanpow * s.hours;
-  const elecSavePct     = s.inv ? 0.22 : 0.38;
+  const elecSavePct     = s.inv ? 0.22 : s.tunnelFan ? 0.32 : 0.38;
   const elecSavingDKK   = annualFanEnergy * elecSavePct * (co.elecPrice / co.fxRate);
-  const thermSavingDKK  =
-    s.heat === "boiler"   ? elecSavingDKK * 0.45 :
-    s.heat === "heatpump" ? elecSavingDKK * 0.22 : 0;
+
+  // Fuel price in DKK/kWh.
+  // Heat pump: thermal output = COP × electrical input, so cost per kWh thermal = elecPrice / COP.
+  const fuelPriceDkk =
+    s.heat === "wood"     ? co.woodPrice / co.fxRate :
+    s.heat === "oil"      ? co.oilPrice  / co.fxRate :
+    s.heat === "gas"      ? co.gasPrice  / co.fxRate :
+    s.heat === "heatpump" ? (co.elecPrice / co.fxRate) / 3.2 :
+    s.heat === "electric" ? co.elecPrice / co.fxRate : 0;
+
+  // Annual thermal load: kilns × cycles × capacity × 280 kWh/m³ per cycle
+  const annualThermalKwh = s.kilns * s.cycles * s.m3 * 280;
+  const isCombustion     = s.heat === "wood" || s.heat === "oil" || s.heat === "gas";
+  const heatSavePct      =
+    isCombustion          ? (s.heatRecov ? 0.15 : 0.22) :
+    s.heat === "heatpump" ? (s.heatRecov ? 0.10 : 0.16) :
+    s.heat === "electric" ? (s.heatRecov ? 0.12 : 0.18) : 0;
+  const thermSavingDKK   = annualThermalKwh * heatSavePct * fuelPriceDkk;
+
   const totalDKK = elecSavingDKK + thermSavingDKK;
 
-  const health = Math.round(([20, 55, 85][s.age - 1]! + (s.inv ? 70 : 20)) / 2);
+  // Health score — normalised: worst possible configuration = 0%, best = 100%
+  const kilnAgeScore  = [15, 50, 80][s.kilnAge - 1]!;
+  const ctrlAgeScore  = [15, 50, 80][s.age     - 1]!;
+  const invScore      = s.inv        ? 75 : 15;
+  const heatScore     = s.heatRecov  ? 75 : 25;
+  const tunnelScore   = s.tunnelFan  ? 75 : 25;
+  const stopGoScore   = s.stopAndGo  ? 75 : 25;
+  const remoteScore   = s.remoteCtrl ? 75 : 25;
+  const rawHealthScore = (kilnAgeScore + ctrlAgeScore + invScore + heatScore + tunnelScore + stopGoScore + remoteScore) / 7;
+  const HEALTH_RAW_MAX = (80 + 80 + 75 + 75 + 75 + 75 + 75) / 7; // ≈ 76.4 — best achievable average
+  const health = Math.min(100, Math.max(0, Math.round((rawHealthScore / HEALTH_RAW_MAX) * 100)));
 
   const elecSavedKwh   = annualFanEnergy * elecSavePct;
   const currentFanCO2t = (annualFanEnergy * ef.electricity) / 1_000_000;
   const savedFanCO2t   = (elecSavedKwh   * ef.electricity) / 1_000_000;
 
-  const annualThermalKwh = s.kilns * s.m3 * 280;
   const heatEmFactor =
-    s.heat === "boiler"   ? ef.boiler :
-    s.heat === "heatpump" ? ef.heatpump : ef.electricity;
-  const heatSavePct     = s.heat === "boiler" ? 0.22 : s.heat === "heatpump" ? 0.12 : 0;
+    s.heat === "wood"     ? FUEL_EMISSIONS.wood :
+    s.heat === "oil"      ? FUEL_EMISSIONS.oil  :
+    s.heat === "gas"      ? FUEL_EMISSIONS.gas  :
+    s.heat === "heatpump" ? ef.heatpump         : ef.electricity;
   const currentHeatCO2t = (annualThermalKwh * heatEmFactor) / 1_000_000;
   const savedHeatCO2t   = currentHeatCO2t * heatSavePct;
 
+  // Quality savings — capped by current waste rate; zero if Stop & Go already fitted
+  const annualThroughputM3 = s.kilns * s.cycles * s.m3;
+  const qualityGainLoPct   = s.stopAndGo ? 0 : Math.min(0.02, s.wastePercent / 100);
+  const qualityGainHiPct   = s.stopAndGo ? 0 : Math.min(0.05, s.wastePercent / 100);
+  const qualitySavingLoDkk = annualThroughputM3 * s.materialValueDkk * qualityGainLoPct;
+  const qualitySavingHiDkk = annualThroughputM3 * s.materialValueDkk * qualityGainHiPct;
+
+  // Cost per drying cycle per kiln
+  const elecPriceDkk         = co.elecPrice / co.fxRate;
+  const cycleElecCostDkk     = s.fanpow * s.cycleHours * elecPriceDkk;
+  const cycleThermalCostDkk  = fuelPriceDkk > 0 ? s.m3 * 280 * fuelPriceDkk : 0;
+  const costPerCycleDkk      = cycleElecCostDkk + cycleThermalCostDkk;
+  const costPerCycleAfterDkk =
+    cycleElecCostDkk * (1 - elecSavePct) +
+    cycleThermalCostDkk * (1 - heatSavePct);
+  const savingPerCycleDkk    = costPerCycleDkk - costPerCycleAfterDkk;
+
   return {
-    totalDKK, elecSavePct, health,
-    savedFanCO2t, savedHeatCO2t,
-    currentFanCO2t,
+    totalDKK, elecSavePct, health, fuelPriceDkk, heatSavePct, isCombustion,
+    savedFanCO2t, savedHeatCO2t, currentFanCO2t, heatEmFactor,
     totalSavedCO2t: savedFanCO2t + savedHeatCO2t,
+    qualitySavingLoDkk, qualitySavingHiDkk, annualThroughputM3,
+    costPerCycleDkk, costPerCycleAfterDkk, savingPerCycleDkk,
+    cycleElecCostDkk, cycleThermalCostDkk,
   };
 }
 
@@ -182,9 +246,16 @@ export function KilnUpgradesRoiCalculator() {
   const [cycles,     setCycles]     = useState(20);
   const [cycleHours, setCycleHours] = useState(240);
   const [fanpow,     setFanpow]     = useState(45);
-  const [heat,       setHeat]       = useState<HeatSource>("boiler");
+  const [heat,       setHeat]       = useState<HeatSource>("wood");
+  const [kilnAge,    setKilnAge]    = useState<1 | 2 | 3>(1);
   const [age,        setAge]        = useState<1 | 2 | 3>(1);
   const [inv,        setInv]        = useState(false);
+  const [heatRecov,    setHeatRecov]    = useState(false);
+  const [tunnelFan,    setTunnelFan]    = useState(false);
+  const [stopAndGo,    setStopAndGo]    = useState(false);
+  const [remoteCtrl,      setRemoteCtrl]      = useState(false);
+  const [materialValueDkk,setMaterialValueDkk] = useState(2500); // DKK/m³
+  const [wastePercent,    setWastePercent]     = useState(8);    // %
   const [selectedPkg,setSelectedPkg]= useState<string | null>(null);
 
   const [contact,    setContact]    = useState<Contact>({ name: "", email: "", job: "", company: "" });
@@ -208,11 +279,11 @@ export function KilnUpgradesRoiCalculator() {
     });
   }, []);
 
-  useEffect(() => { if (step !== 5) setFormError(null); }, [step]);
+  useEffect(() => { if (step !== 6) setFormError(null); }, [step]);
 
   const savings  = useMemo(
-    () => calcSavings({ country, kilns, m3, fanpow, hours, inv, heat, age }),
-    [country, kilns, m3, fanpow, hours, inv, heat, age],
+    () => calcSavings({ country, kilns, m3, fanpow, hours, inv, heat, age, kilnAge, heatRecov, tunnelFan, stopAndGo, remoteCtrl, materialValueDkk, wastePercent, cycles, cycleHours }),
+    [country, kilns, m3, fanpow, hours, inv, heat, age, kilnAge, heatRecov, tunnelFan, stopAndGo, remoteCtrl, materialValueDkk, wastePercent, cycles, cycleHours],
   );
   const packages = useMemo(() => calcPackages(savings.totalDKK, kilns), [savings.totalDKK, kilns]);
 
@@ -256,7 +327,7 @@ export function KilnUpgradesRoiCalculator() {
         return;
       }
       setSubmitting(false);
-      goTo(6);
+      goTo(7);
     } catch {
       setFormError("Network error. Please try again.");
       setSubmitting(false);
@@ -266,7 +337,11 @@ export function KilnUpgradesRoiCalculator() {
   const resetForm = () => {
     setCountry("dk"); setProduct(null);
     setKilns(3); setM3(60); setCycles(20); setCycleHours(240);
-    setFanpow(45); setHeat("boiler"); setAge(1); setInv(false); setSelectedPkg(null);
+    setFanpow(45); setHeat("wood");
+    setKilnAge(1); setAge(1); setInv(false); setHeatRecov(false); setTunnelFan(false);
+    setStopAndGo(false); setRemoteCtrl(false);
+    setMaterialValueDkk(2500); setWastePercent(8);
+    setSelectedPkg(null);
     setContact({ name: "", email: "", job: "", company: "" });
     setErrors({}); setFormError(null);
   };
@@ -275,13 +350,13 @@ export function KilnUpgradesRoiCalculator() {
     <div ref={topRef}>
 
       {/* Progress bar */}
-      {step <= 4 && (
+      {step <= 5 && (
         <div className="mb-8">
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--color-ink-300)" }}>
-            Step {step + 1} of 5
+            Step {step + 1} of 6
           </p>
           <div className="flex gap-1.5">
-            {Array.from({ length: 5 }, (_, i) => (
+            {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex-1 h-1 rounded-full transition-all duration-300"
                 style={{
                   background: i < step ? "var(--color-tan-500)" : i === step ? "var(--color-ink-900)" : "var(--color-paper-dark)",
@@ -295,7 +370,7 @@ export function KilnUpgradesRoiCalculator() {
       {/* ── 0: Country ──────────────────────────────────────────────────────── */}
       {step === 0 && (
         <StepShell headingRef={headingRef}
-          eyebrow="Step 1 of 5 — Location"
+          eyebrow="Step 1 of 6 — Location"
           title={<>Where are your kilns <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>located?</em></>}
           description="Select your market. Energy prices, gas prices, and CO₂ emission factors are pre-configured per country — you will see the full picture on the results page."
         >
@@ -328,7 +403,7 @@ export function KilnUpgradesRoiCalculator() {
       {/* ── 1: Product ──────────────────────────────────────────────────────── */}
       {step === 1 && (
         <StepShell headingRef={headingRef}
-          eyebrow="Step 2 of 5 — Product"
+          eyebrow="Step 2 of 6 — Product"
           title="What do you dry?"
           description="Select the primary product type dried in your kilns."
         >
@@ -359,81 +434,116 @@ export function KilnUpgradesRoiCalculator() {
         </StepShell>
       )}
 
-      {/* ── 2: Setup + Condition ────────────────────────────────────────────── */}
+      {/* ── 2: Capacity ─────────────────────────────────────────────────────── */}
       {step === 2 && (
         <StepShell headingRef={headingRef}
-          eyebrow="Step 3 of 5 — Setup & Condition"
-          title="Your kilns"
-          description="Configure your kiln fleet and describe the current system state."
+          eyebrow="Step 3 of 6 — Capacity"
+          title="Kiln fleet capacity"
+          description="Tell us how many kilns you operate and how intensively they run. This drives the annual throughput and energy baseline."
         >
-          <SectionLabel>Setup</SectionLabel>
-
-          <SliderRow label="Antal tørrestuer"                    value={kilns}      display={String(kilns)}                        min={1}  max={12}  step={1}  onChange={setKilns}      />
-          <SliderRow label="Kapacitet pr. tørrestue (m³)"       value={m3}         display={`${m3} m³`}                              min={20} max={300} step={10} onChange={setM3}         />
-          <SliderRow label="Tørrecyklusser pr. tørrestue pr. år" value={cycles}     display={`${cycles} cyklusser`}                                                min={1}  max={365} step={1}  onChange={setCycles}     />
-          <SliderRow label="Timer pr. tørrecyklus"               value={cycleHours} display={`${cycleHours} h (${(cycleHours / 24).toFixed(1)} dage)`} min={12} max={600} step={6}  onChange={setCycleHours} />
+          <SliderRow label="Number of kilns"                  value={kilns}      display={String(kilns)}                                                        min={1}  max={12}  step={1}  onChange={setKilns}      />
+          <SliderRow label="Capacity per kiln (m³)"           value={m3}         display={`${m3} m³`}                                                           min={20} max={300} step={10} onChange={setM3}         />
+          <SliderRow label="Drying cycles per kiln / year"    value={cycles}     display={`${cycles} cycles`}                                                   min={1}  max={365} step={1}  onChange={setCycles}     />
+          <SliderRow label="Hours per drying cycle"           value={cycleHours} display={`${cycleHours} h (${(cycleHours / 24).toFixed(1)} days)`}             min={12} max={600} step={6}  onChange={setCycleHours} />
 
           {cycles * cycleHours > 8760 ? (
             <div className="mb-5 rounded-md px-4 py-3 text-sm"
               style={{ background: "#fff4e5", border: "1px solid #f59e0b", color: "#92400e" }}>
-              <p className="font-semibold">Kombinationen overstiger årets maksimum</p>
+              <p className="font-semibold">Combination exceeds annual maximum</p>
               <p className="mt-0.5 text-xs">
-                {cycles} cyklusser × {cycleHours} h = {(cycles * cycleHours).toLocaleString("en")} h — men et år har maks. 8.760 h.
-                Beregningen bruger 8.760 h. Reducer antal cyklusser eller timer pr. cyklus.
+                {cycles} cycles × {cycleHours} h = {(cycles * cycleHours).toLocaleString("en")} h — a year has at most 8,760 h.
+                Calculation uses 8,760 h. Reduce the number of cycles or hours per cycle.
               </p>
             </div>
           ) : (
             <div className="mb-5 flex items-center justify-between rounded-md px-4 py-2.5 text-sm"
               style={{ background: "var(--color-cream-50)", border: "1px solid var(--color-paper-dark)" }}>
-              <span style={{ color: "var(--color-ink-500)" }}>Driftstimer pr. tørrestue pr. år (beregnet)</span>
+              <span style={{ color: "var(--color-ink-500)" }}>Annual operating hours / kiln (derived)</span>
               <span className="font-semibold" style={{ color: "var(--color-ink-900)" }}>
                 {hours.toLocaleString("en")} h
               </span>
             </div>
           )}
 
-          {/* Divider */}
-          <div className="my-8 flex items-center gap-3">
-            <div className="flex-1 h-px" style={{ background: "var(--color-paper-dark)" }} />
-            <span className="text-xs font-semibold uppercase tracking-widest px-1" style={{ color: "var(--color-ink-300)" }}>
-              Condition
-            </span>
-            <div className="flex-1 h-px" style={{ background: "var(--color-paper-dark)" }} />
-          </div>
+          <NavRow onBack={() => goTo(1)} onNext={() => goTo(3)} />
+        </StepShell>
+      )}
 
-          <SliderRow label="Control system generation" value={age} display={AGE_LABELS[age]}
+      {/* ── 3: Condition + Quality ──────────────────────────────────────────── */}
+      {step === 3 && (
+        <StepShell headingRef={headingRef}
+          eyebrow="Step 4 of 6 — Condition"
+          title="Kiln condition & quality"
+          description="Describe the current state of your kiln system. These inputs determine your health score, upgrade potential, and quality gain estimate."
+        >
+          <SectionLabel>Current kiln configuration</SectionLabel>
+
+          {/* Kiln age */}
+          <SliderRow label="Kiln age" value={kilnAge} display={KILN_AGE_LABELS[kilnAge]}
+            min={1} max={3} step={1} onChange={(v) => setKilnAge(v as 1 | 2 | 3)} />
+
+          {/* Control system age */}
+          <SliderRow label="Control system age" value={age} display={CTRL_AGE_LABELS[age]}
             min={1} max={3} step={1} onChange={(v) => setAge(v as 1 | 2 | 3)} />
 
           <div className="mb-5 rounded-r-md border-l-4 p-3 text-sm leading-relaxed"
             style={{ background: "var(--color-cream-50)", borderLeftColor: "var(--color-tan-500)", color: "var(--color-ink-500)" }}>
-            {AGE_DESCS[age]}
+            {CTRL_AGE_DESCS[age]}
           </div>
 
-          <div className="mb-5">
-            <p className="mb-3 text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>Inverter drives on fans?</p>
-            <div className="space-y-2">
-              {([
-                { value: false, label: "No — direct on-line motors", sub: "High upgrade impact" },
-                { value: true,  label: "Yes — already fitted",        sub: "Reduced upgrade impact" },
-              ] as const).map(({ value, label, sub }) => (
-                <label key={String(value)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border p-3.5 cursor-pointer transition-all",
-                    inv === value
-                      ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)]"
-                      : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
-                  )}
-                >
-                  <input type="radio" name="inv" value={String(value)} checked={inv === value}
-                    onChange={() => setInv(value)} style={{ accentColor: "var(--color-navy-900)" }} />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--color-ink-900)" }}>{label}</p>
-                    <p className="text-xs" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
+          {/* Heat recovery */}
+          <YesNoRow
+            label="Heat recovery installed?"
+            name="heatRecov"
+            value={heatRecov}
+            onChange={setHeatRecov}
+            noLabel="No" noSub="High thermal saving potential"
+            yesLabel="Yes — already fitted" yesSub="Reduced thermal saving potential"
+          />
+
+          {/* Inverter drives */}
+          <YesNoRow
+            label="Inverter drives on fans?"
+            name="inv"
+            value={inv}
+            onChange={setInv}
+            noLabel="No — direct on-line motors" noSub="High upgrade impact"
+            yesLabel="Yes — already fitted" yesSub="Reduced upgrade impact"
+          />
+
+          {/* Fan power */}
+          <SliderRow label="Fan motor power per kiln (kW)" value={fanpow} display={`${fanpow} kW`}
+            min={10} max={150} step={5} onChange={setFanpow} />
+
+          {/* Tunnel technology */}
+          <YesNoRow
+            label="Tunnel-technology ventilation?"
+            name="tunnelFan"
+            value={tunnelFan}
+            onChange={setTunnelFan}
+            noLabel="No — conventional fan layout" noSub="Full upgrade scope"
+            yesLabel="Yes — tunnel fans installed" yesSub="Reduced fan upgrade scope"
+          />
+
+          {/* Stop and Go */}
+          <YesNoRow
+            label="Automated wood-condition drying (Stop & Go)?"
+            name="stopAndGo"
+            value={stopAndGo}
+            onChange={setStopAndGo}
+            noLabel="No — time-based drying programme" noSub="High software upgrade potential"
+            yesLabel="Yes — Stop & Go active"         yesSub="Software layer already in place"
+          />
+
+          {/* Remote control */}
+          <YesNoRow
+            label="Real-time remote kiln control?"
+            name="remoteCtrl"
+            value={remoteCtrl}
+            onChange={setRemoteCtrl}
+            noLabel="No — on-site operation only"    noSub="Remote monitoring adds significant value"
+            yesLabel="Yes — remote access installed" yesSub="Connectivity layer in place"
+          />
 
           {/* Live health score */}
           <div className="rounded-lg border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "white" }}>
@@ -458,20 +568,69 @@ export function KilnUpgradesRoiCalculator() {
             </p>
           </div>
 
-          <NavRow onBack={() => goTo(1)} onNext={() => goTo(3)} />
+          {/* ── Quality section ─────────────────────────────────────────── */}
+          <div className="mt-8">
+            <SectionLabel>Quality</SectionLabel>
+          </div>
+
+          <SliderRow
+            label="Dried material value"
+            value={materialValueDkk}
+            display={`${co.sym}${Math.round(materialValueDkk * co.fxRate).toLocaleString("en")} / m³`}
+            min={200} max={10000} step={100}
+            onChange={setMaterialValueDkk}
+          />
+
+          <SliderRow
+            label="Current waste / reject rate"
+            value={wastePercent}
+            display={`${wastePercent}%`}
+            min={1} max={25} step={0.5}
+            onChange={setWastePercent}
+          />
+
+          <div className="mb-5 rounded-md px-4 py-3 text-sm"
+            style={{ background: "var(--color-cream-50)", border: "1px solid var(--color-paper-dark)" }}>
+            {stopAndGo ? (
+              <>
+                <p className="font-semibold mb-1" style={{ color: "var(--color-ink-900)" }}>
+                  Stop &amp; Go already active
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--color-ink-500)" }}>
+                  Moisture-condition drying is already reducing your reject rates.
+                  Further quality gains are available through remote optimisation and AI-assisted drying recipes.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold mb-1" style={{ color: "var(--color-ink-900)" }}>
+                  Quality improvement potential with Stop &amp; Go
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--color-ink-500)" }}>
+                  Moisture-condition-based drying reduces over-drying and rejects by up to 2–5%,
+                  capped at your current reject rate of {wastePercent}%.
+                  At {co.sym}{Math.round(materialValueDkk * co.fxRate).toLocaleString("en")}/m³,
+                  the estimated annual quality gain is{" "}
+                  <strong style={{ color: "var(--color-ink-900)" }}>
+                    {fmtLocal(savings.qualitySavingLoDkk, co)}–{fmtLocal(savings.qualitySavingHiDkk, co)} / yr
+                  </strong>{" "}
+                  across {kilns} kiln{kilns > 1 ? "s" : ""}.
+                </p>
+              </>
+            )}
+          </div>
+
+          <NavRow onBack={() => goTo(2)} onNext={() => goTo(4)} />
         </StepShell>
       )}
 
-      {/* ── 3: Energy ───────────────────────────────────────────────────────── */}
-      {step === 3 && (
+      {/* ── 4: Energy ───────────────────────────────────────────────────────── */}
+      {step === 4 && (
         <StepShell headingRef={headingRef}
-          eyebrow="Step 4 of 5 — Energy"
+          eyebrow="Step 5 of 6 — Energy"
           title="Energy configuration"
-          description={`Fan power and heat source for your kilns in ${co.name}. Energy prices are pre-configured from country data and will appear on the results page.`}
+          description={`Primary heat source for your kilns in ${co.name}. Energy prices are pre-configured from country data and will appear on the results page.`}
         >
-          <SliderRow label="Fan motor power per kiln (kW)" value={fanpow} display={`${fanpow} kW`}
-            min={10} max={150} step={5} onChange={setFanpow} />
-
           <div className="mt-6">
             <p className="mb-3 text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>Primary heat source</p>
             <div className="space-y-2">
@@ -494,40 +653,93 @@ export function KilnUpgradesRoiCalculator() {
               ))}
             </div>
           </div>
-          <NavRow onBack={() => goTo(2)} onNext={() => goTo(4)} />
+          <NavRow onBack={() => goTo(3)} onNext={() => goTo(5)} />
         </StepShell>
       )}
 
-      {/* ── 4: Results ──────────────────────────────────────────────────────── */}
-      {step === 4 && (
+      {/* ── 5: Results ──────────────────────────────────────────────────────── */}
+      {step === 5 && (
         <StepShell headingRef={headingRef}
-          eyebrow="Step 5 of 5 — Results"
+          eyebrow="Step 6 of 6 — Results"
           title={<>Your <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>upgrade potential</em></>}
           description={`With ${kilns} kiln${kilns > 1 ? "s" : ""} in ${co.name}, here is what three upgrade levels deliver — in ${co.currency}.`}
         >
           {/* Pills */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {[
-              co.name,
-              co.currency,
+          {(() => {
+            const fuelLabel =
+              heat === "wood"     ? `${co.sym}${co.woodPrice.toFixed(3)}/kWh wood chips` :
+              heat === "oil"      ? `${co.sym}${co.oilPrice.toFixed(2)}/kWh oil`         :
+              heat === "gas"      ? `${co.sym}${co.gasPrice.toFixed(2)}/kWh gas`         :
+              heat === "heatpump" ? `${co.sym}${(co.elecPrice / 3.2).toFixed(3)}/kWh (heat pump thermal)` :
+              heat === "electric" ? `${co.sym}${co.elecPrice.toFixed(2)}/kWh electric heat` : null;
+            const pills = [
+              co.name, co.currency,
               `${co.sym}${co.elecPrice.toFixed(2)}/kWh electricity`,
-              `${co.sym}${co.gasPrice.toFixed(2)}/kWh gas`,
+              ...(fuelLabel ? [fuelLabel] : []),
               ...(co.fxRate !== 1 ? [`${co.fxLabel} (fixed ref. Jun 2025)`] : []),
-            ].map((pill) => (
-              <span key={pill} className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
-                style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-500)", background: "white" }}>
-                {pill}
-              </span>
-            ))}
-          </div>
+            ];
+            return (
+              <div className="flex flex-wrap gap-2 mb-6">
+                {pills.map((pill) => (
+                  <span key={pill} className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
+                    style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-500)", background: "white" }}>
+                    {pill}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Financial metrics */}
           <div className="grid grid-cols-3 gap-3 mb-6">
-            <MetricCard label="Annual savings (est.)"  value={`${fmtLocal(savings.totalDKK, co)}/yr`}           sub="across all kilns"      />
+            <MetricCard label="Annual savings (est.)"  value={`${fmtLocal(savings.totalDKK, co)}/yr`}           sub="across all kilns" />
             <MetricCard label="Electricity saving"     value={`${Math.round(savings.elecSavePct * 100)}% less`} sub="Stop & Go + inverters" />
             <MetricCard label="Thermal saving"
-              value={heat === "boiler" ? "~25% less" : heat === "heatpump" ? "~12% less" : "N/A"}
-              sub="heat recovery" />
+              value={savings.heatSavePct > 0 ? `~${Math.round(savings.heatSavePct * 100)}% less` : "N/A"}
+              sub={savings.isCombustion ? "fuel consumption" : heat === "heatpump" ? "heat pump load" : heat === "electric" ? "heating load" : "no thermal system"} />
+          </div>
+
+          {/* Cost per drying cycle */}
+          <div className="mb-6 rounded-xl border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "var(--color-cream-50)" }}>
+            <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--color-ink-900)" }}>
+              Cost per drying cycle — per kiln
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <MetricCard
+                label="Electricity now"
+                value={fmtLocal(savings.cycleElecCostDkk, co)}
+                sub={`${cycleHours} h × ${fanpow} kW`}
+              />
+              {savings.cycleThermalCostDkk > 0 && (
+                <MetricCard
+                  label="Heat energy now"
+                  value={fmtLocal(savings.cycleThermalCostDkk, co)}
+                  sub={`${m3} m³ × 280 kWh/m³`}
+                />
+              )}
+              <MetricCard
+                label="Total cost now"
+                value={fmtLocal(savings.costPerCycleDkk, co)}
+                sub="per cycle / kiln"
+              />
+              <MetricCard
+                label="After upgrade"
+                value={fmtLocal(savings.costPerCycleAfterDkk, co)}
+                sub={`saving ${fmtLocal(savings.savingPerCycleDkk, co)}/cycle`}
+              />
+            </div>
+            <p className="text-[10px] leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
+              Electricity: {fanpow} kW × {cycleHours} h × {co.sym}{co.elecPrice.toFixed(2)}/kWh.
+              {savings.cycleThermalCostDkk > 0
+                ? ` Heat: ${m3} m³ × 280 kWh/m³ × ${co.sym}${
+                    heat === "wood"     ? co.woodPrice.toFixed(3) :
+                    heat === "oil"      ? co.oilPrice.toFixed(2)  :
+                    heat === "gas"      ? co.gasPrice.toFixed(2)  :
+                    heat === "heatpump" ? (co.elecPrice / 3.2).toFixed(3) :
+                                         co.elecPrice.toFixed(2)
+                  }/kWh.`
+                : ""}
+            </p>
           </div>
 
           {/* CO₂ */}
@@ -541,11 +753,14 @@ export function KilnUpgradesRoiCalculator() {
               <MetricCard label="Saved — electricity"   value={`${savings.savedFanCO2t.toFixed(1)} t/yr`}
                 sub={`${Math.round(savings.elecSavePct * 100)}% fan energy reduction`} />
               {savings.savedHeatCO2t > 0.05 && (
-                <MetricCard label={`Saved — ${heat === "boiler" ? "heat" : "heat pump"}`}
+                <MetricCard
+                  label={`Saved — ${heat === "wood" ? "wood boiler" : heat === "oil" ? "oil boiler" : heat === "gas" ? "gas boiler" : heat === "electric" ? "electric heat" : "heat pump"}`}
                   value={`${savings.savedHeatCO2t.toFixed(1)} t/yr`}
                   sub={heat === "heatpump"
                     ? `${ef.heatpump} gCO₂/kWh · COP 3.2`
-                    : `${ef.boiler} gCO₂/kWh · ${ef.boilerLabel}`} />
+                    : heat === "electric"
+                      ? `${ef.electricity} gCO₂/kWh · grid`
+                      : `${savings.heatEmFactor} gCO₂/kWh · ${heat} combustion`} />
               )}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t" style={{ borderColor: "var(--color-paper-dark)" }}>
@@ -559,9 +774,58 @@ export function KilnUpgradesRoiCalculator() {
               )}
             </div>
             <p className="mt-2 text-[10px] leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
-              Thermal load estimated at {kilns}×{m3} m³ × 280 kWh/m³/yr.
-              {heat === "boiler"   ? ` Boiler: ${ef.boilerLabel}.` : ""}
-              {heat === "heatpump" ? ` Heat pump COP 3.2 assumed.` : ""}
+              Thermal load estimated at {kilns} × {cycles} cycles × {m3} m³ × 280 kWh/m³.
+              {heat === "wood"     ? " Wood chips (biogenic): 30 gCO₂/kWh."  : ""}
+              {heat === "oil"      ? " Heating oil: 265 gCO₂/kWh."           : ""}
+              {heat === "gas"      ? " Natural gas: 205 gCO₂/kWh."           : ""}
+              {heat === "heatpump" ? " Heat pump COP 3.2 assumed."            : ""}
+              {heat === "electric" ? " Direct electric resistance heating."   : ""}
+            </p>
+          </div>
+
+          {/* Quality impact */}
+          <div className="mb-6 rounded-xl border p-5" style={{ borderColor: "var(--color-paper-dark)", background: "var(--color-cream-50)" }}>
+            <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--color-ink-900)" }}>
+              Quality impact — Stop &amp; Go
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+              <MetricCard
+                label="Annual throughput"
+                value={`${savings.annualThroughputM3.toLocaleString("en")} m³`}
+                sub={`${kilns} kiln${kilns > 1 ? "s" : ""} × ${cycles} cycles × ${m3} m³`}
+              />
+              <MetricCard
+                label="Material value"
+                value={`${co.sym}${Math.round(materialValueDkk * co.fxRate).toLocaleString("en")}/m³`}
+                sub="dried product"
+              />
+              <MetricCard
+                label="Current reject rate"
+                value={`${wastePercent}%`}
+                sub="of throughput"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t" style={{ borderColor: "var(--color-paper-dark)" }}>
+              {stopAndGo ? (
+                <p className="text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>
+                  Stop &amp; Go already active —{" "}
+                  <strong style={{ color: "var(--color-tan-500)" }}>quality benefit in your current baseline</strong>
+                </p>
+              ) : (
+                <p className="text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>
+                  Quality gain:{" "}
+                  <strong style={{ color: "var(--color-tan-500)" }}>
+                    {fmtLocal(savings.qualitySavingLoDkk, co)}–{fmtLocal(savings.qualitySavingHiDkk, co)} / yr
+                  </strong>
+                </p>
+              )}
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
+              {stopAndGo
+                ? "Stop & Go is active — moisture-condition drying already reduces reject rates. Further gains come from remote optimisation and AI-assisted drying recipes."
+                : wastePercent < 5
+                  ? `Gain capped at current reject rate of ${wastePercent}%: Stop & Go reduces over-drying and rejects up to that ceiling. Not included in energy savings above.`
+                  : "Assumes 2–5% better material utilisation through moisture-condition-based drying (Stop & Go). Not included in energy savings figures above."}
             </p>
           </div>
 
@@ -623,7 +887,12 @@ export function KilnUpgradesRoiCalculator() {
           {/* Disclaimer */}
           <p className="mb-6 text-xs leading-relaxed" style={{ color: "var(--color-ink-300)" }}>
             <strong style={{ color: "var(--color-ink-500)" }}>Reference prices:</strong>{" "}
-            electricity {co.sym}{co.elecPrice.toFixed(2)}/kWh · gas {co.sym}{co.gasPrice.toFixed(2)}/kWh · {co.name} typical industrial.
+            electricity {co.sym}{co.elecPrice.toFixed(2)}/kWh
+            {heat === "wood" ? ` · wood chips ${co.sym}${co.woodPrice.toFixed(3)}/kWh` : ""}
+            {heat === "oil"  ? ` · oil ${co.sym}${co.oilPrice.toFixed(2)}/kWh`         : ""}
+            {heat === "gas"  ? ` · gas ${co.sym}${co.gasPrice.toFixed(2)}/kWh`         : ""}
+            {heat === "heatpump" ? ` · heat pump effective thermal ${co.sym}${(co.elecPrice / 3.2).toFixed(3)}/kWh` : ""}
+            {" "}· {co.name} typical industrial.
             {co.fxRate !== 1 ? ` Converted from DKK at ${co.fxLabel} (fixed rate, Jun 2025).` : ""}
             {" "}<strong style={{ color: "var(--color-ink-500)" }}>Actual savings require on-site technical assessment.</strong>
           </p>
@@ -635,15 +904,15 @@ export function KilnUpgradesRoiCalculator() {
               actual operation — free, no commitment.
             </p>
             <div className="flex flex-wrap gap-3">
-              <SecondaryButton onClick={() => goTo(3)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
-              <PrimaryButton   onClick={() => goTo(5)}>Get in touch <ArrowRight className="size-4" aria-hidden /></PrimaryButton>
+              <SecondaryButton onClick={() => goTo(4)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
+              <PrimaryButton   onClick={() => goTo(6)}>Get in touch <ArrowRight className="size-4" aria-hidden /></PrimaryButton>
             </div>
           </div>
         </StepShell>
       )}
 
-      {/* ── 5: Contact ──────────────────────────────────────────────────────── */}
-      {step === 5 && (
+      {/* ── 6: Contact ──────────────────────────────────────────────────────── */}
+      {step === 6 && (
         <StepShell headingRef={headingRef}
           eyebrow="Get in Touch"
           title={<>Let&apos;s turn this into a <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>real proposal</em></>}
@@ -676,7 +945,7 @@ export function KilnUpgradesRoiCalculator() {
             {formError && <p className="text-sm text-[#b3261e]" role="alert">{formError}</p>}
 
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <SecondaryButton type="button" onClick={() => goTo(4)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
+              <SecondaryButton type="button" onClick={() => goTo(5)}><ArrowLeft className="size-4" aria-hidden /> Back</SecondaryButton>
               <PrimaryButton type="submit" disabled={submitting} aria-busy={submitting || undefined}>
                 {submitting
                   ? <><Loader2 className="size-4 animate-spin" aria-hidden />Sending…</>
@@ -687,8 +956,8 @@ export function KilnUpgradesRoiCalculator() {
         </StepShell>
       )}
 
-      {/* ── 6: Thank you ────────────────────────────────────────────────────── */}
-      {step === 6 && (
+      {/* ── 7: Thank you ────────────────────────────────────────────────────── */}
+      {step === 7 && (
         <StepShell headingRef={headingRef}
           eyebrow="Submission Received"
           title={<>Thank you, <em className="not-italic" style={{ color: "var(--color-tan-500)" }}>{firstName}!</em></>}
@@ -841,5 +1110,38 @@ function SecondaryButton({ children, type = "button", ...props }: ButtonHTMLAttr
       )}
       style={{ borderColor: "var(--color-paper-dark)", color: "var(--color-ink-900)", background: "transparent", borderWidth: 1.5 }}
     >{children}</button>
+  );
+}
+
+function YesNoRow({ label, name, value, onChange, noLabel, noSub, yesLabel, yesSub }: {
+  label: string; name: string; value: boolean; onChange: (v: boolean) => void;
+  noLabel: string; noSub: string; yesLabel: string; yesSub: string;
+}) {
+  return (
+    <div className="mb-5">
+      <p className="mb-3 text-sm font-semibold" style={{ color: "var(--color-ink-900)" }}>{label}</p>
+      <div className="space-y-2">
+        {([
+          { val: false, lbl: noLabel,  sub: noSub  },
+          { val: true,  lbl: yesLabel, sub: yesSub },
+        ] as const).map(({ val, lbl, sub }) => (
+          <label key={String(val)}
+            className={cn(
+              "flex items-center gap-3 rounded-lg border p-3.5 cursor-pointer transition-all",
+              value === val
+                ? "border-[var(--color-navy-900)] bg-[var(--color-cream-50)]"
+                : "border-[var(--color-paper-dark)] bg-white hover:border-[var(--color-navy-500)]",
+            )}
+          >
+            <input type="radio" name={name} value={String(val)} checked={value === val}
+              onChange={() => onChange(val)} style={{ accentColor: "var(--color-navy-900)" }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--color-ink-900)" }}>{lbl}</p>
+              <p className="text-xs" style={{ color: "var(--color-ink-300)" }}>{sub}</p>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }

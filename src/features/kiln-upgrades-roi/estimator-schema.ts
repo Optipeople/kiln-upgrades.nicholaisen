@@ -16,7 +16,7 @@ export const EstimatorSchema = z.object({
     price: z.number().min(0).max(20),
     currency: z.string().min(3).max(3),
     fanpow: z.number().min(1).max(200),
-    heat: z.enum(["boiler", "electric", "heatpump"]),
+    heat: z.enum(["wood", "oil", "gas", "electric", "heatpump"]),
     age: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     inv: z.boolean(),
     healthScore: z.number().min(0).max(100),

@@ -11,7 +11,9 @@ const COUNTRY_NAMES: Record<string, string> = {
 };
 
 const HEAT_LABELS: Record<string, string> = {
-  boiler: "Thermal boiler (wood / oil / gas)",
+  wood:     "Wood chips boiler (flis / biomass)",
+  oil:      "Oil boiler",
+  gas:      "Gas boiler",
   electric: "Electric heating",
   heatpump: "Heat pump",
 };
