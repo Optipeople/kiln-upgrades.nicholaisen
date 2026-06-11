@@ -1,25 +1,26 @@
 @import "tailwindcss";
 
 @theme {
-  /* Nicholaisen palette — orange/black/neutral (shared with NichoMachines) */
-  --color-navy-950: #da5f06;
-  --color-navy-900: #da5f06;
-  --color-navy-700: #b84f00;
-  --color-navy-500: #e8e8e8;
-  --color-slate-500: #666666;
+  /* Nicholaisen Kiln Upgrades palette — navy / warm-cream / rust */
+  --color-navy-950: #001e38;
+  --color-navy-900: #003050;    /* primary buttons, selected borders, headings */
+  --color-navy-700: #1a4060;    /* hover / focus state */
+  --color-navy-500: #436384;    /* steel blue — mid accents, hover borders */
 
-  --color-tan-500: #da5f06;
-  --color-tan-300: #f08040;
-  --color-beige-200: #e8e8e8;
+  --color-slate-500: #8a92a0;
 
-  --color-cream-50: #f5f5f5;
-  --color-paper: #ffffff;
-  --color-paper-dark: #e8e8e8;
+  --color-tan-500: #C0601A;     /* rust / burnt-orange accent — highlights, progress */
+  --color-tan-300: #d97c3a;     /* lighter rust */
+  --color-beige-200: #DCD5C2;
 
-  --color-ink-900: #0a0a0a;
-  --color-ink-700: #2a2a2a;
-  --color-ink-500: #555555;
-  --color-ink-300: #999999;
+  --color-cream-50: #EEEAE1;    /* warm paper — page background */
+  --color-paper: #ffffff;        /* card / panel backgrounds */
+  --color-paper-dark: #DCD5C2;  /* warm tan — borders, dividers */
+
+  --color-ink-900: #003050;     /* headings, primary text */
+  --color-ink-700: #1a3a54;
+  --color-ink-500: #4a5a70;     /* secondary text — blue-grey */
+  --color-ink-300: #8a92a0;     /* faint / placeholder text */
 
   --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
