@@ -197,7 +197,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.RESEND_API_KEY;
   const toRaw = process.env.ROI_TO_EMAIL ?? process.env.CONTACT_TO_EMAIL ?? site.email;
-  const fromRaw = process.env.ROI_FROM_EMAIL ?? `Nicholaisen <noreply@${site.domain}>`;
+  const fromRaw = process.env.ROI_FROM_EMAIL ?? `Nicholaisen <noreply@${new URL(site.url).hostname}>`;
 
   const submittedAt = new Date().toLocaleString("en-GB", {
     timeZone: "Europe/Copenhagen",
