@@ -8,32 +8,32 @@ export function Footer() {
       <Container size="default">
         <div className="grid gap-8 py-12 sm:grid-cols-[1.5fr_1fr_1fr]">
           <div>
-            <p className="text-eyebrow text-[var(--color-tan-500)]">{site.legalName}</p>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--color-ink-500)]">
-              {site.description}
-            </p>
-            <p className="mt-4 text-xs text-[var(--color-slate-500)]">
-              CVR · DK-12345678 &nbsp;·&nbsp; Industrivej 1, 8700 Horsens, Denmark
-            </p>
+            <p className="text-eyebrow text-[var(--color-tan-500)]">Information</p>
+            <address className="mt-3 text-sm not-italic leading-relaxed text-[var(--color-ink-500)]">
+              {site.legalName}<br />
+              Sønderskovvej 17<br />
+              8362 Hørning<br />
+              CVR: 19454770
+            </address>
           </div>
 
           <div>
-            <p className="text-eyebrow text-[var(--color-slate-500)]">Tools</p>
+            <p className="text-eyebrow text-[var(--color-slate-500)]">Kontakt</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
-                <Link
-                  href="/"
+                <a
+                  href="tel:+4586924711"
                   className="text-[var(--color-ink-700)] transition-colors hover:text-[var(--color-tan-500)]"
                 >
-                  Kiln Upgrades ROI
-                </Link>
+                  T +45 8692 4711
+                </a>
               </li>
               <li>
                 <a
-                  href="https://6-sided-machining-center.nichomachines.com/"
+                  href={`mailto:${site.email}`}
                   className="text-[var(--color-ink-700)] transition-colors hover:text-[var(--color-tan-500)]"
                 >
-                  6-Side Machining ROI
+                  {site.email}
                 </a>
               </li>
             </ul>
@@ -48,14 +48,6 @@ export function Footer() {
                   className="text-[var(--color-ink-700)] transition-colors hover:text-[var(--color-tan-500)]"
                 >
                   nicholaisen.dk
-                </a>
-              </li>
-              <li>
-                <a
-                  href={`mailto:${site.email}`}
-                  className="text-[var(--color-ink-700)] transition-colors hover:text-[var(--color-tan-500)]"
-                >
-                  {site.email}
                 </a>
               </li>
               <li>
