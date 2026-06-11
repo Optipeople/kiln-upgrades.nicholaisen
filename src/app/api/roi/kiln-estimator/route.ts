@@ -197,7 +197,10 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.RESEND_API_KEY;
   const toRaw = process.env.ROI_TO_EMAIL ?? process.env.CONTACT_TO_EMAIL ?? site.email;
-  const fromRaw = process.env.ROI_FROM_EMAIL ?? `Nicholaisen <noreply@${new URL(site.url).hostname}>`;
+  const fromRaw =
+    process.env.ROI_FROM_EMAIL ??
+    process.env.CONTACT_FROM_EMAIL ??
+    `Nicholaisen <noreply@updates.${new URL(site.url).hostname.split(".").slice(-2).join(".")}>`;
 
   const submittedAt = new Date().toLocaleString("en-GB", {
     timeZone: "Europe/Copenhagen",
@@ -220,13 +223,18 @@ export async function POST(request: Request) {
   const toAddresses = toRaw.split(",").map((s) => s.trim()).filter(Boolean);
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: fromRaw,
       to: toAddresses,
       replyTo: data.contact.email,
       subject,
       html,
     });
+    if (result.error) {
+      console.error("[kiln-estimator] resend rejected send", result.error, { from: fromRaw, to: toAddresses });
+      return NextResponse.json({ error: "Email could not be sent. Please try again." }, { status: 502 });
+    }
+    console.info("[kiln-estimator] sent", { id: result.data?.id, to: toAddresses });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[kiln-estimator] send error", err);
