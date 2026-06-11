@@ -18,7 +18,7 @@ export function Footer() {
           </div>
 
           <div>
-            <p className="text-eyebrow text-[var(--color-slate-500)]">Kontakt</p>
+            <p className="text-eyebrow text-[var(--color-slate-500)]">Contact</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <a
