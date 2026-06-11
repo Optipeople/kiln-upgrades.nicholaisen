@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 210" role="img" aria-label="Nicholaisen">
+  <g fill="#003050">
+    <!-- N glyph -->
+    <path d="M65,8 L91,8 L159,103 L159,8 L185,8 L185,138 L159,138 L91,43 L91,138 L65,138 Z"/>
+    <!-- thin signature needle in upper white triangle -->
+    <path d="M93,12 L97,12 L150,86 L146,86 Z"/>
+    <!-- wordmark -->
+    <text x="125" y="190" text-anchor="middle"
+      font-family="Arial, Helvetica, sans-serif" font-weight="700"
+      font-size="40" letter-spacing="1" fill="#003050">NICHOLAISEN</text>
+  </g>
+</svg>
