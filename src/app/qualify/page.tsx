@@ -42,7 +42,7 @@ export default function QualifyPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/nicholaisen-logo.svg"
+              src="/nicholaisen-logo.png"
               alt="Nicholaisen"
               className="h-24 w-auto"
             />
